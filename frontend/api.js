@@ -249,6 +249,16 @@ export function atualizarStatusPedido(id, status) {
   return request('PATCH', `/pedidos/${id}/status`, { status });
 }
 
+/** GET /pedidos/:id/pagamento — retorna o pagamento simulado no MongoDB. */
+export function getPagamentoPedido(id) {
+  return request('GET', `/pedidos/${id}/pagamento`);
+}
+
+/** POST /pedidos/:id/pagamento — persiste apenas metadados não sensíveis. */
+export function simularPagamentoPedido(id, payload) {
+  return request('POST', `/pedidos/${id}/pagamento`, payload);
+}
+
 // =============================================================
 // 8. Avaliações (Fase D)
 // =============================================================

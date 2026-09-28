@@ -21,7 +21,7 @@ import {
   el, limpar, bannerErro, formatarMoeda, formatarData, loading, toast,
 } from '../ui.js';
 import {
-  getPedido, atualizarStatusPedido, listarAvaliacoesDoAgricultor,
+  getPedido, getPagamentoPedido, atualizarStatusPedido, listarAvaliacoesDoAgricultor,
 } from '../api.js';
 import { getUser } from '../auth.js';
 import { navigate } from '../router.js';
@@ -57,6 +57,16 @@ export async function renderPedidoDetalhe({ outlet, params }) {
   // Se o cliente e o pedido está entregue, busca a avaliação existente em
   // paralelo (não bloqueante visualmente — montamos o resto da tela primeiro).
   let avaliacaoExistente = null;
+  let pagamentoExistente = null;
+  if (user.role === 'cliente' && ['confirmado', 'entregue'].includes(pedido.status)) {
+    try {
+      const resposta = await getPagamentoPedido(pedido.id);
+      pagamentoExistente = resposta?.pagamento || null;
+    } catch (error) {
+      console.warn('[pedido-detalhe] falha ao consultar pagamento:', error);
+    }
+  }
+
   if (user.role === 'cliente' && pedido.status === 'entregue') {
     try {
       // Pega uma janela grande de uma vez; o front filtra por cliente_id local.
@@ -87,7 +97,7 @@ export async function renderPedidoDetalhe({ outlet, params }) {
   const erroAcoes = el('div', { className: 'pedido-detalhe-erro-acoes' });
   root.appendChild(erroAcoes);
 
-  root.appendChild(renderAcoes(pedido, user, erroAcoes, avaliacaoExistente));
+  root.appendChild(renderAcoes(pedido, user, erroAcoes, avaliacaoExistente, pagamentoExistente));
 }
 
 // =============================================================
@@ -261,7 +271,7 @@ function renderDetalhes(pedido) {
 // =============================================================
 // Bloco 5 — Ações (depende de role × status)
 // =============================================================
-function renderAcoes(pedido, user, erroSlot, avaliacaoExistente) {
+function renderAcoes(pedido, user, erroSlot, avaliacaoExistente, pagamentoExistente) {
   const wrap = el('div', { className: 'pedido-bloco pedido-acoes-bloco' });
   wrap.appendChild(el('h2', { className: 'pedido-bloco-titulo', text: 'Ações' }));
 
@@ -317,7 +327,20 @@ function renderAcoes(pedido, user, erroSlot, avaliacaoExistente) {
         confirmMsg: 'Cancelar este pedido? Esta ação não pode ser desfeita.',
         classes: 'btn btn-ghost pedido-acao-destrutiva',
       }));
-    } else if (status === 'entregue') {
+    } else if (status === 'confirmado' || status === 'entregue') {
+      if (pagamentoExistente?.status === 'aprovado') {
+        acoes.appendChild(el('p', {
+          className: 'pagamento-aprovado-inline',
+          text: `Pagamento aprovado · ${nomeMetodoPagamento(pagamentoExistente.metodo)}`,
+        }));
+      } else {
+        acoes.appendChild(el('a', {
+          className: 'btn btn-primary',
+          text: 'Realizar pagamento',
+          attrs: { href: `#/pedidos/${pedido.id}/pagamento` },
+        }));
+      }
+      if (status === 'entregue') {
       if (avaliacaoExistente) {
         // Já avaliou — mostra bloco discreto + link "Editar avaliação"
         acoes.appendChild(renderJaAvaliado(pedido, avaliacaoExistente));
@@ -331,6 +354,7 @@ function renderAcoes(pedido, user, erroSlot, avaliacaoExistente) {
           },
         }));
       }
+      }
     } else {
       acoes.appendChild(textoSemAcoes(status));
     }
@@ -338,6 +362,15 @@ function renderAcoes(pedido, user, erroSlot, avaliacaoExistente) {
 
   wrap.appendChild(acoes);
   return wrap;
+}
+
+function nomeMetodoPagamento(metodo) {
+  return ({
+    pix: 'PIX',
+    credit_card: 'cartão de crédito',
+    debit_card: 'cartão de débito',
+    cash: 'dinheiro na retirada',
+  })[metodo] || 'método selecionado';
 }
 
 /** Botão genérico que pede confirmação e dispara PATCH /pedidos/:id/status. */

@@ -18,7 +18,7 @@ Nada além disso. SQLite é embutido no `better-sqlite3`. Não precisa instalar 
 1. Descompactar o `.zip`
 2. `cd backend`
 3. `npm install`
-4. `cp .env.example .env` e abrir o arquivo para ajustar `JWT_SECRET` para qualquer string longa e aleatória (ex.: `openssl rand -hex 32`)
+4. `cp ../.env.example .env` e abrir o arquivo para ajustar `JWT_SECRET` para qualquer string longa e aleatória (ex.: `openssl rand -hex 32`). Para habilitar pagamentos simulados, configurar também `MONGO_URI` com a URI do Atlas; o banco usado é `farm`.
 5. `npm run db:init`
 6. `npm run dev`
 7. Confirmar que subiu — você deve ver no console:
@@ -48,6 +48,9 @@ curl http://localhost:3000/api/health
 | `JWT_SECRET` | Segredo HMAC para assinar/validar JWTs. **Trocar antes de subir.** | `9f2a8b...` (>=32 chars aleatórios) |
 | `JWT_EXPIRES_IN` | Validade do token. Aceita formatos do `jsonwebtoken` (`240h`, `10d`, etc.) | `240h` |
 | `DB_PATH` | Caminho do arquivo SQLite, relativo ao diretório `backend/` | `./database.sqlite` |
+| `MONGO_URI` | URI do MongoDB Atlas para persistência de pagamentos simulados | `mongodb+srv://...` |
+
+O domínio principal (usuários, produtos, carrinhos, conversas e pedidos) continua no SQLite. Somente os pagamentos simulados são gravados na coleção `pagamentos` do banco MongoDB `farm`. O checkout nunca persiste número completo do cartão, validade, CVV ou chave Pix.
 
 ---
 

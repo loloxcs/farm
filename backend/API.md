@@ -650,6 +650,20 @@
   - `404` agricultor ou pedido não encontrado
 - **RF coberto:** RF11
 
+### `GET /api/pedidos/:id/pagamento`
+- **Auth:** cliente dono do pedido
+- **Descrição:** Retorna o pagamento simulado salvo na coleção `pagamentos` do banco MongoDB `farm`, ou `null` quando ainda não existe.
+- **Response 200:** `{ "pagamento": { "pedido_id": 88, "metodo": "pix", "valor": 13.5, "status": "aprovado", "transacao_id": "..." } }`
+- **Erros:** `401` não autenticado; `403` usuário não é o cliente do pedido; `404` pedido inexistente; `503` MongoDB não configurado ou indisponível.
+
+### `POST /api/pedidos/:id/pagamento`
+- **Auth:** cliente dono do pedido
+- **Descrição:** Simula a aprovação de um pagamento para pedido confirmado ou entregue. Aceita `metodo`: `pix`, `credit_card`, `debit_card` ou `cash`; cartões também enviam `cartao_ultimos4`.
+- **Persistência:** registra pedido, cliente, agricultor, método, valor, status, referência simulada e, para cartão, somente os últimos quatro dígitos. Número completo, validade, CVV e chave Pix não são enviados nem guardados.
+- **Response 201:** objeto do pagamento com `status: "aprovado"` e `transacao_id`.
+- **Erros:** `400` método ou metadados inválidos; `401` não autenticado; `403` pedido não pertence ao cliente; `409` pedido não confirmado ou pagamento já registrado; `503` MongoDB indisponível.
+- **Observação:** pagamento acadêmico de demonstração; não processa transações reais.
+
 ---
 
 ### `GET /api/agricultores/:id/avaliacoes`
@@ -694,7 +708,7 @@
 | RF10 | Listagem de produtos | `GET /api/agricultores/:id/produtos` |
 | RF11 | Avaliações | `POST /api/avaliacoes`, `GET /api/agricultores/:id/avaliacoes` |
 | RF12 | Conversa única | `GET /api/conversas`, `POST /api/conversas/com/:outroId/mensagens` (UNIQUE no schema) |
-| RF13 | Pedido via snapshot | `GET /api/formas-pagamento`, `POST /api/pedidos`, `GET /api/pedidos`, `GET /api/pedidos/:id`, `PATCH /api/pedidos/:id/status` |
+| RF13 | Pedido via snapshot | `GET /api/formas-pagamento`, `POST /api/pedidos`, `GET /api/pedidos`, `GET /api/pedidos/:id`, `PATCH /api/pedidos/:id/status`, `GET/POST /api/pedidos/:id/pagamento` |
 
 ---
 

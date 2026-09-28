@@ -4,6 +4,7 @@ Projeto full-stack com:
 
 - **Backend** — API REST em Node.js + Express, banco SQLite. Roda em `http://localhost:3000`.
 - **Frontend** — HTML + CSS + JavaScript puro (sem build, sem bundler). Servido em `http://localhost:5500`.
+- **Pagamentos de demonstração** — gravados na coleção `pagamentos` do MongoDB `farm`; pedidos e demais dados continuam no SQLite.
 
 ```
 farmDirectBackend/
@@ -28,6 +29,12 @@ Na **raiz do projeto**, dê permissão de execução uma única vez:
 
 ```bash
 chmod +x run.sh reset.sh
+```
+
+Na primeira execução, crie a configuração privada do backend e preencha `JWT_SECRET`. Para habilitar a gravação de pagamentos simulados, preencha também `MONGO_URI` com a URI do Atlas. O arquivo `backend/.env` é ignorado pelo Git.
+
+```bash
+cp .env.example backend/.env
 ```
 
 ### Uso normal — NÃO mexe no banco
@@ -64,6 +71,7 @@ Se preferir controlar cada parte em terminais separados:
 **Terminal 1 — backend**
 ```bash
 cd backend
+cp ../.env.example .env  # só na primeira vez; preencha JWT_SECRET e MONGO_URI
 npm install        # só na primeira vez
 npm run db:init    # só na primeira vez (ATENÇÃO: db:init/db:reset apagam o banco!)
 npm run dev        # ou: npm start

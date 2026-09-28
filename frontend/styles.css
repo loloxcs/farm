@@ -1745,6 +1745,110 @@ a.pedido-parte-valor { color: var(--color-primary); }
   font-size: 0.85rem;
 }
 
+/* Checkout simulado */
+.pagamento-page {
+  width: min(100%, 680px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pagamento-voltar {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pagamento-titulo {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.pagamento-resumo,
+.pagamento-bloco,
+.pagamento-aprovado {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+.pagamento-resumo {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.pagamento-resumo-label,
+.pagamento-resumo-ajuda {
+  color: var(--color-text-muted);
+}
+
+.pagamento-resumo-total {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+}
+
+.pagamento-resumo-ajuda {
+  font-size: 0.875rem;
+}
+
+.pagamento-bloco-titulo {
+  margin: 0 0 var(--space-4);
+  font-size: 1.125rem;
+}
+
+.pagamento-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pagamento-campos,
+.pagamento-cartao-linha {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.pagamento-campos > .form-field:first-child,
+.pagamento-metodo-ajuda {
+  grid-column: 1 / -1;
+}
+
+.pagamento-seguranca,
+.pagamento-metodo-ajuda {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.pagamento-aprovado {
+  border-color: var(--color-primary);
+  text-align: center;
+}
+
+.pagamento-aprovado-icone {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.pagamento-aprovado h2 { margin: var(--space-3) 0; }
+.pagamento-aprovado p { margin: var(--space-2) 0; }
+.pagamento-transacao { color: var(--color-text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+.pagamento-aprovado-inline { margin: 0; color: var(--color-primary); font-weight: 600; }
+
 /* =========================================================
    Modal de gerar pedido — Fase D
    ========================================================= */
@@ -1953,6 +2057,15 @@ a.pedido-parte-valor { color: var(--color-primary); }
   .pedido-item-preco    { grid-area: preco; text-align: right; }
 
   .pedido-acoes .btn { width: 100%; }
+
+  .pagamento-resumo,
+  .pagamento-bloco,
+  .pagamento-aprovado { padding: var(--space-4); }
+  .pagamento-resumo { grid-template-columns: 1fr; }
+  .pagamento-resumo-total { grid-column: auto; grid-row: auto; }
+  .pagamento-campos,
+  .pagamento-cartao-linha { grid-template-columns: 1fr; }
+  .pagamento-form > .btn { width: 100%; }
 
   .stars-input-star { font-size: 36px; }
 }

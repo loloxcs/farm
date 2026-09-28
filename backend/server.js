@@ -14,6 +14,7 @@ const catalogosRoutes   = require('./routes/catalogos');
 const carrinhoRoutes    = require('./routes/carrinho');
 const conversasRoutes   = require('./routes/conversas');
 const pedidosRoutes     = require('./routes/pedidos');
+const pagamentosRoutes  = require('./routes/pagamentos');
 
 const { produtos, produtosPorAgr, imagens } = require('./routes/produtos');
 const { avaliacoes, avaliacoesPorAgr }      = require('./routes/avaliacoes');
@@ -49,6 +50,7 @@ app.use('/api/agricultores',          agricultoresRoutes);
 
 app.use('/api/carrinho',              carrinhoRoutes);
 app.use('/api/conversas',             conversasRoutes);
+app.use('/api/pedidos',               pagamentosRoutes);
 app.use('/api/pedidos',               pedidosRoutes);
 app.use('/api/avaliacoes',            avaliacoes);
 

@@ -16,6 +16,7 @@ import { renderMeuPerfil } from './pages/meu-perfil.js';
 import { renderMeusProdutos } from './pages/meus-produtos.js';
 import { renderPedidosLista } from './pages/pedidos-lista.js';
 import { renderPedidoDetalhe } from './pages/pedido-detalhe.js';
+import { renderPagamento } from './pages/pagamento.js';
 
 // =============================================================
 // Header global
@@ -147,6 +148,8 @@ router.register('#/meus-produtos',
 // Fase D — pedidos (cliente + agricultor)
 router.register('#/pedidos',
   exigirRole(null, renderPedidosLista));
+router.register('#/pedidos/:id/pagamento',
+  exigirRole('cliente', renderPagamento));
 router.register('#/pedidos/:id',
   exigirRole(null, renderPedidoDetalhe));
 
