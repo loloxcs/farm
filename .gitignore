@@ -1,9 +1,8 @@
-# Archive bundles
-frontend_A.zip
-frontend_B.zip
-frontend_C.zip
-frontend_D.zip
-*_final.zip
-
-# OS files
+node_modules/
+.env
+database.sqlite
+database.sqlite-journal
+database.sqlite-wal
+database.sqlite-shm
+*.log
 .DS_Store

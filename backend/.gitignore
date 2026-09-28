@@ -1,8 +1,0 @@
-node_modules/
-.env
-database.sqlite
-database.sqlite-journal
-database.sqlite-wal
-database.sqlite-shm
-*.log
-.DS_Store
