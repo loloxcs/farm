@@ -6,6 +6,10 @@
 //   DELETE /carrinho/:agricultorId/itens/:itemId (botão remover)
 //   DELETE /carrinho/:agricultorId               (Limpar carrinho)
 //   POST   /conversas/com/:agricultorId/snapshot (Enviar para o agricultor)
+//
+// Antes de enviar, o CLIENTE escolhe a forma de pagamento entre as que o
+// agricultor aceita (perfil.formas_aceitas). A escolha vai junto com o
+// carrinho e vira a forma de pagamento do pedido — o agricultor não escolhe.
 
 import {
   el, limpar, bannerErro, criarAvatar, formatarMoeda,
@@ -18,6 +22,14 @@ import {
 import { navigate } from '../router.js';
 
 const DEBOUNCE_MS = 400;
+
+const DICA_FORMA = {
+  pix: 'Você paga no app do banco; o agricultor confirma.',
+  transfer: 'Você transfere; o agricultor confirma.',
+  cash: 'Você paga em mãos, na entrega ou retirada.',
+  credit_card: 'Simulação acadêmica — nada é cobrado.',
+  debit_card: 'Simulação acadêmica — nada é cobrado.',
+};
 
 export async function renderCarrinho({ outlet, params }) {
   limpar(outlet);
@@ -103,6 +115,48 @@ function renderConteudo(container, agricultorId, agricultor, carrinho) {
   }));
   container.appendChild(totalBox);
 
+  // Forma de pagamento — escolhida pelo cliente. A seleção fica guardada no
+  // container para sobreviver aos re-renders (editar quantidade, remover item).
+  const formas = Array.isArray(agricultor?.perfil?.formas_aceitas) ? agricultor.perfil.formas_aceitas : [];
+  if (formas.length > 0) {
+    if (!formas.some((f) => f.id === container.dataset.metodo)) delete container.dataset.metodo;
+    const bloco = el('div', { className: 'carrinho-pagamento' });
+    bloco.appendChild(el('h2', { className: 'carrinho-pagamento-titulo', text: 'Como você quer pagar?' }));
+    bloco.appendChild(el('p', {
+      className: 'form-help',
+      text: `Formas que ${agricultor.nome || 'o agricultor'} aceita. Você paga só depois que o pedido for confirmado, e ainda pode trocar na hora de pagar.`,
+    }));
+    const grupo = el('div', {
+      className: 'pagamento-metodos',
+      attrs: { role: 'radiogroup', 'aria-label': 'Forma de pagamento' },
+    });
+    const opcoes = [];
+    for (const forma of formas) {
+      const input = el('input', {
+        attrs: { type: 'radio', name: 'carrinho-forma', value: forma.id, id: `carrinho-forma-${forma.id}` },
+      });
+      input.checked = container.dataset.metodo === forma.id;
+      const label = el('label', {
+        className: `radio-option pagamento-metodo ${input.checked ? 'is-selected' : ''}`,
+        attrs: { for: `carrinho-forma-${forma.id}` },
+      });
+      label.appendChild(input);
+      const textos = el('span', { className: 'pagamento-metodo-textos' });
+      textos.appendChild(el('span', { className: 'pagamento-metodo-nome', text: forma.rotulo }));
+      textos.appendChild(el('span', { className: 'form-help', text: DICA_FORMA[forma.id] || '' }));
+      label.appendChild(textos);
+      input.addEventListener('change', () => {
+        container.dataset.metodo = forma.id;
+        for (const o of opcoes) o.label.classList.toggle('is-selected', o.id === forma.id);
+        limpar(erroSlot);
+      });
+      opcoes.push({ id: forma.id, label });
+      grupo.appendChild(label);
+    }
+    bloco.appendChild(grupo);
+    container.appendChild(bloco);
+  }
+
   // Erro slot para o snapshot
   const erroSlot = el('div', { className: 'carrinho-erro-slot' });
   container.appendChild(erroSlot);
@@ -123,10 +177,15 @@ function renderConteudo(container, agricultorId, agricultor, carrinho) {
   });
   btnSnapshot.addEventListener('click', async () => {
     limpar(erroSlot);
+    const metodo = container.dataset.metodo || undefined;
+    if (formas.length > 0 && !metodo) {
+      erroSlot.appendChild(bannerErro('Escolha como você quer pagar antes de enviar o carrinho.'));
+      return;
+    }
     btnSnapshot.disabled = true;
     btnSnapshot.textContent = 'Enviando...';
     try {
-      const resp = await enviarSnapshot(agricultorId);
+      const resp = await enviarSnapshot(agricultorId, { metodo_pagamento: metodo });
       toast('Carrinho enviado para o agricultor', { tipo: 'success' });
       const conversaId = resp?.conversa_id;
       if (conversaId) {

@@ -2,8 +2,9 @@
  * Regras compartilhadas de pagamento.
  *
  * O pagamento acontece direto entre cliente e agricultor (a plataforma não
- * movimenta dinheiro). O que o sistema registra é o *combinado* e as
- * confirmações de cada lado:
+ * movimenta dinheiro). Quem escolhe a forma de pagamento é sempre o CLIENTE
+ * (ao enviar o carrinho, entre as formas que o agricultor aceita; pode trocar
+ * na hora de pagar). O sistema registra a escolha e as confirmações de cada lado:
  *
  *   PIX / transferência → cliente informa que pagou → agricultor confirma (ou contesta)
  *   Dinheiro            → cliente avisa que paga na entrega/retirada → agricultor confirma ao receber
@@ -46,7 +47,25 @@ function rotuloMetodo(metodo) {
   return METODOS[metodo]?.rotulo || 'Pagamento';
 }
 
-/** Método combinado no pedido (ou null se a forma for desconhecida). */
+/** Método → forma do catálogo `formas_pagamento` (mesmos ids e nomes do seed). */
+const FORMA_POR_METODO = {
+  cash:        { id: 1, nome: 'Dinheiro' },
+  pix:         { id: 2, nome: 'PIX' },
+  debit_card:  { id: 3, nome: 'Cartão de Débito' },
+  credit_card: { id: 4, nome: 'Cartão de Crédito' },
+  transfer:    { id: 5, nome: 'Transferência Bancária' },
+};
+
+/** { id, nome } da forma de pagamento correspondente ao método (ou null). */
+function formaDoMetodo(metodo) {
+  return FORMA_POR_METODO[metodo] ? { ...FORMA_POR_METODO[metodo] } : null;
+}
+
+/**
+ * Método que o CLIENTE escolheu ao enviar o carrinho (fica gravado no pedido
+ * como `forma_pagamento`). Null se ele ainda não escolheu — pedidos antigos ou
+ * carrinhos enviados sem forma; nesse caso ele define na hora de pagar.
+ */
 function metodoCombinado(pedido) {
   const forma = pedido?.forma_pagamento || {};
   const nome = String(forma.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -116,6 +135,7 @@ module.exports = {
   TIPOS_ENTREGA,
   rotuloMetodo,
   metodoCombinado,
+  formaDoMetodo,
   metodosAceitos,
   serializarPagamento,
   resumoPagamento,

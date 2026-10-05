@@ -498,7 +498,7 @@
 ### `POST /api/conversas/com/:agricultorId/snapshot`
 - **Auth:** cliente
 - **Descrição:** Envia o carrinho ativo do par como mensagem do tipo `snapshot`. Serializa o carrinho atual em JSON imutável dentro de `mensagens.snapshot_json`, marca o carrinho como `status='snapshot_enviado'` (libera novo carrinho ativo se o cliente quiser começar outro), e cria/usa a conversa do par. **O snapshot não muda mais, mesmo se o carrinho original for alterado depois.**
-- **Request body:** vazio (servidor lê o carrinho ativo do par)
+- **Request body:** `{ "metodo_pagamento": "pix" }` — a forma de pagamento que o **cliente** escolheu: `pix`, `transfer`, `cash`, `credit_card` ou `debit_card`, entre as que o agricultor aceita (`perfil.formas_aceitas` em `GET /api/agricultores/:id`). Os itens o servidor lê do carrinho ativo do par. O campo é opcional na API (compatibilidade); o site sempre envia.
 - **Response 201:**
   ```json
   {
@@ -510,7 +510,8 @@
         "itens": [
           { "produto_id": 301, "nome": "Alface crespa", "quantidade": 3, "preco_unit": 4.5, "subtotal": 13.5 }
         ],
-        "total": 13.5
+        "total": 13.5,
+        "pagamento": { "metodo": "pix", "rotulo": "PIX" }
       },
       "carrinho_id": 42,
       "created_at": "2026-05-06T14:30:00Z"
@@ -518,7 +519,7 @@
   }
   ```
 - **Erros:**
-  - `400` carrinho ativo está vazio ou não existe
+  - `400` carrinho ativo está vazio ou não existe; `metodo_pagamento` inválido; forma não aceita pelo agricultor (`METODO_NAO_ACEITO`)
   - `401` não autenticado
   - `403` usuário não é cliente
   - `404` agricultor não encontrado
@@ -535,13 +536,13 @@
   ```json
   {
     "mensagem_snapshot_id": 5015,
-    "forma_pagamento_id": 2,
     "tipo_entrega": "entrega",
     "data_retirada": "2026-05-08T09:00:00Z",
     "local_entrega": "Rua das Flores, 120 — Centro",
     "observacoes": "Trazer sacolas reutilizáveis"
   }
   ```
+  - **Forma de pagamento:** não é enviada aqui. Quem escolhe é o **cliente**, ao enviar o carrinho (`POST /api/conversas/com/:agricultorId/snapshot` com `metodo_pagamento`); o pedido herda essa escolha em `forma_pagamento`. Se o carrinho foi enviado sem forma, `forma_pagamento` fica `null` e o cliente escolhe na hora de pagar.
   - `tipo_entrega` — `retirada` (padrão) ou `entrega`.
   - `data_retirada` — data combinada; vale para retirada **e** entrega (o nome do campo foi mantido por compatibilidade).
   - `local_entrega` — endereço de entrega ou ponto de retirada (opcional, até 200 caracteres).
@@ -570,10 +571,10 @@
   }
   ```
 - **Erros:**
-  - `400` mensagem não é do tipo snapshot, snapshot já virou pedido, estoque insuficiente em algum item, forma_pagamento_id inválida, `tipo_entrega` fora do enum, `data_retirada` mal formatada
+  - `400` mensagem não é do tipo snapshot, snapshot já virou pedido, estoque insuficiente em algum item, `tipo_entrega` fora do enum, `data_retirada` mal formatada
   - `401` não autenticado
   - `403` agricultor não é o destinatário da snapshot
-  - `404` mensagem ou forma de pagamento não encontrada
+  - `404` mensagem não encontrada
 - **RF coberto:** RF13
 
 ---
@@ -694,7 +695,7 @@
 
 ## 9. Pagamento do pedido e confirmações no chat
 
-O dinheiro vai **direto do cliente para o agricultor** — a plataforma não processa transações reais. O que o sistema registra é o combinado e a confirmação de cada lado, e cada passo vira uma mensagem automática no chat entre os dois.
+O dinheiro vai **direto do cliente para o agricultor** — a plataforma não processa transações reais. **Quem escolhe a forma de pagamento é sempre o cliente**: primeiro ao enviar o carrinho (entre as formas que o agricultor aceita no perfil) e, se quiser, trocando na hora de pagar. O agricultor não escolhe a forma; ele confirma (ou contesta) o recebimento. Cada passo vira uma mensagem automática no chat entre os dois.
 
 | Método (`metodo`) | Como funciona | Status inicial |
 |---|---|---|

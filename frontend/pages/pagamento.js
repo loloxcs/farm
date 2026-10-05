@@ -3,7 +3,7 @@
 // Rota: #/pedidos/:id/pagamento
 //
 // O dinheiro vai direto do cliente para o agricultor. Esta tela:
-//   1. mostra o que foi combinado (total, entrega ou retirada, forma de pagamento);
+//   1. mostra o resumo (total, entrega ou retirada, forma que o cliente escolheu no carrinho);
 //   2. deixa o cliente escolher a forma (entre as que o agricultor aceita) e
 //      INFORMAR o pagamento — PIX/transferência ficam aguardando o agricultor
 //      confirmar; dinheiro fica "a pagar na entrega/retirada"; cartão é simulado;
@@ -136,7 +136,7 @@ function renderResumo(pedido, agricultor, pagamento) {
     linhas.appendChild(el('span', { text: `${t.rotuloLocal}: ${pedido.local_entrega}` }));
   }
   if (pedido.forma_pagamento?.nome) {
-    linhas.appendChild(el('span', { text: `Forma combinada: ${pedido.forma_pagamento.nome}` }));
+    linhas.appendChild(el('span', { text: `Forma que você escolheu no carrinho: ${pedido.forma_pagamento.nome}` }));
   }
   resumo.appendChild(linhas);
   return resumo;
@@ -261,7 +261,7 @@ function renderFormulario({ pedido, pagamento, opcoes, agricultor }) {
     textos.appendChild(el('span', { className: 'form-help', text: dicaMetodo(metodo.id) }));
     label.appendChild(textos);
     if (metodo.combinado) {
-      label.appendChild(el('span', { className: 'pagamento-metodo-tag', text: 'Combinado' }));
+      label.appendChild(el('span', { className: 'pagamento-metodo-tag', text: 'Sua escolha' }));
     }
     input.addEventListener('change', () => {
       selecionado = metodo.id;

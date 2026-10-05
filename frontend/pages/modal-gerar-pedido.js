@@ -3,11 +3,15 @@
 // Modal sobreposto, aberto pelo botão "Gerar pedido" da bolha de snapshot
 // no chat (`pages/conversa.js`). Mesmo padrão do modal de produto da Fase C:
 // overlay + card + header + form + footer; fecha por ×, Cancelar, click no
-// overlay e Esc; foco automático no primeiro select.
+// overlay e Esc; foco automático no primeiro campo.
+//
+// A forma de pagamento NÃO é escolhida aqui: quem escolhe é o cliente, ao
+// enviar o carrinho (vem em snapshotJson.pagamento). O agricultor define só
+// entrega/retirada, data, local e observações.
 //
 // O caller passa:
 //   - mensagemSnapshotId: id da mensagem `tipo='snapshot'` que dispara o pedido
-//   - snapshotJson: objeto `{ itens:[...], total }` da mensagem (já presente
+//   - snapshotJson: objeto `{ itens:[...], total, pagamento }` da mensagem (já presente
 //                   no DOM, evita refetch)
 //   - onCriado(pedido): callback chamado em sucesso. Recebe o pedido cru
 //                       devolvido por POST /pedidos. Decisão de navegação
@@ -19,15 +23,11 @@
 //   - 400 ESTOQUE_INSUFICIENTE → "estoque insuficiente para X (disp: N, ped: M)"
 
 import { el, limpar, bannerErro, formatarMoeda } from '../ui.js';
-import { listarFormasPagamento, criarPedido } from '../api.js';
+import { criarPedido } from '../api.js';
 
 const OBS_MAX = 500;
 const LOCAL_MAX = 200;
 const SNAPSHOT_ITENS_VISIVEIS = 5; // mesmo limite da bolha do chat
-
-// Cache em memória de formas de pagamento — populado na primeira abertura
-// e reusado entre re-aberturas. Equivalente ao `categoriasCache` da Fase C.
-let formasPagamentoCache = null;
 
 /**
  * Abre o modal de criação de pedido.
@@ -66,21 +66,20 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
   // ---------- Resumo do snapshot (read-only) ----------
   form.appendChild(renderResumoSnapshot(snapshotJson));
 
-  // ---------- Forma de pagamento ----------
-  const fpWrap = el('div', { className: 'form-field' });
-  fpWrap.appendChild(el('label', {
-    text: 'Forma de pagamento combinada',
-    attrs: { for: 'mgp-forma-pagamento' },
+  // ---------- Forma de pagamento (só leitura) ----------
+  // Quem escolhe é o cliente, ao enviar o carrinho. O agricultor apenas vê.
+  const escolhida = snapshotJson?.pagamento?.rotulo || null;
+  const fpWrap = el('div', { className: 'form-field modal-forma-pagamento' });
+  fpWrap.appendChild(el('span', { className: 'form-rotulo', text: 'Forma de pagamento (escolhida pelo cliente)' }));
+  fpWrap.appendChild(el('strong', {
+    className: 'modal-forma-pagamento-valor',
+    text: escolhida || 'O cliente ainda não escolheu',
   }));
-  const fpSelect = el('select', {
-    attrs: { id: 'mgp-forma-pagamento', required: true },
-  });
-  fpSelect.appendChild(el('option', { text: 'Carregando...', attrs: { value: '' } }));
-  fpSelect.disabled = true;
-  fpWrap.appendChild(fpSelect);
   fpWrap.appendChild(el('span', {
     className: 'form-help',
-    text: 'É a forma sugerida ao cliente na hora de pagar. Ele também pode escolher outra que você aceite (veja “Meu perfil”).',
+    text: escolhida
+      ? 'O cliente pode trocar na hora de pagar, entre as formas que você aceita (veja “Meu perfil”).'
+      : 'Este carrinho foi enviado sem forma de pagamento. O cliente escolhe na hora de pagar, entre as formas que você aceita.',
   }));
   form.appendChild(fpWrap);
 
@@ -206,47 +205,13 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
   document.addEventListener('keydown', escListener);
   document.body.classList.add('modal-aberto');
 
-  // ---------- Carregar formas de pagamento (com cache) ----------
-  (async () => {
-    try {
-      const formas = formasPagamentoCache
-        ? formasPagamentoCache
-        : await listarFormasPagamento();
-      if (!formasPagamentoCache) formasPagamentoCache = formas || [];
-
-      // Repopula o select agora que temos os dados
-      limpar(fpSelect);
-      fpSelect.appendChild(el('option', {
-        text: '— selecione —',
-        attrs: { value: '' },
-      }));
-      for (const f of formasPagamentoCache) {
-        fpSelect.appendChild(el('option', {
-          text: f.nome,
-          attrs: { value: String(f.id) },
-        }));
-      }
-      fpSelect.disabled = false;
-
-      // Foco no primeiro select (após o carregamento, para que o foco caia
-      // num campo já interativo).
-      setTimeout(() => fpSelect.focus(), 0);
-    } catch (err) {
-      erroSlot.appendChild(bannerErro(err));
-      // Mantém o select desabilitado — o usuário ainda pode fechar.
-    }
-  })();
+  // Foco no primeiro campo interativo.
+  setTimeout(() => tipoOpcoes[0]?.label.querySelector('input')?.focus(), 0);
 
   // ---------- Submit ----------
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     limpar(erroSlot);
-
-    const forma_pagamento_id = parseInt(fpSelect.value, 10);
-    if (!Number.isInteger(forma_pagamento_id) || forma_pagamento_id <= 0) {
-      erroSlot.appendChild(bannerErro('Selecione uma forma de pagamento.'));
-      return;
-    }
 
     // Data: datetime-local devolve "2026-05-08T09:00" (sem timezone). Converter
     // pra ISO via Date (interpretado no fuso local) — o backend só guarda a string.
@@ -276,7 +241,6 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
     try {
       const pedido = await criarPedido({
         mensagem_snapshot_id: mensagemSnapshotId,
-        forma_pagamento_id,
         tipo_entrega: tipoEntrega,
         data_retirada,
         local_entrega,

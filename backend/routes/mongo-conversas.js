@@ -5,6 +5,7 @@ const { requireRole } = require('../middleware/role');
 const { obrigatorio } = require('../utils/validacao');
 const { httpError } = require('../middleware/error');
 const { asyncRoute, idParam } = require('../utils/mongo-helpers');
+const { METODOS, metodosAceitos, rotuloMetodo } = require('../utils/pagamentos');
 
 const router = express.Router();
 
@@ -142,6 +143,15 @@ router.post('/com/:agricultorId/snapshot', requireAuth, requireRole('cliente'), 
   const farmer = await db.collection('usuarios').findOne({ id: agricultorId, role: 'agricultor', deleted_at: null });
   if (!farmer) throw httpError(404, 'NOT_FOUND', 'Agricultor não encontrado');
 
+  // Quem diz a forma de pagamento é o cliente, já ao enviar o carrinho.
+  const metodo = req.body?.metodo_pagamento ?? null;
+  if (metodo !== null) {
+    if (!METODOS[metodo]) throw httpError(400, 'VALIDATION', 'Forma de pagamento inválida', { aceitos: Object.keys(METODOS) });
+    if (!metodosAceitos(farmer.perfil).includes(metodo)) {
+      throw httpError(400, 'METODO_NAO_ACEITO', `Este agricultor não aceita ${rotuloMetodo(metodo)}.`);
+    }
+  }
+
   const cart = await db.collection('carrinhos').findOne({
     cliente_id: req.user.id, agricultor_id: agricultorId, status: 'ativo',
   });
@@ -165,6 +175,7 @@ router.post('/com/:agricultorId/snapshot', requireAuth, requireRole('cliente'), 
   const payload = {
     itens: items,
     total: Number(items.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2)),
+    pagamento: metodo ? { metodo, rotulo: rotuloMetodo(metodo) } : null,
   };
 
   const conversation = await getOuCriarConversa(db, req.user.id, agricultorId);

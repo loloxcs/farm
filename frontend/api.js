@@ -229,9 +229,14 @@ export function enviarMensagem(outroId, { conteudo }) {
   return request('POST', `/conversas/com/${outroId}/mensagens`, { conteudo });
 }
 
-/** POST /conversas/com/:agricultorId/snapshot — RF07, RF08 */
-export function enviarSnapshot(agricultorId) {
-  return request('POST', `/conversas/com/${agricultorId}/snapshot`);
+/**
+ * POST /conversas/com/:agricultorId/snapshot — RF07, RF08
+ * `metodo_pagamento`: forma que o CLIENTE escolheu (pix | transfer | cash |
+ * credit_card | debit_card), entre as que o agricultor aceita. Vai junto com o
+ * carrinho e vira a forma de pagamento do pedido.
+ */
+export function enviarSnapshot(agricultorId, { metodo_pagamento } = {}) {
+  return request('POST', `/conversas/com/${agricultorId}/snapshot`, { metodo_pagamento });
 }
 
 // =============================================================
@@ -242,12 +247,13 @@ export function enviarSnapshot(agricultorId) {
  * POST /pedidos — RF13 (agricultor cria a partir de snapshot).
  * `tipo_entrega`: 'retirada' | 'entrega'. `data_retirada` é a data combinada
  * (vale para os dois casos) e `local_entrega` o endereço ou ponto de retirada.
+ * A forma de pagamento NÃO vai aqui: é a que o cliente escolheu no carrinho.
  */
 export function criarPedido({
-  mensagem_snapshot_id, forma_pagamento_id, tipo_entrega, data_retirada, local_entrega, observacoes,
+  mensagem_snapshot_id, tipo_entrega, data_retirada, local_entrega, observacoes,
 }) {
   return request('POST', '/pedidos', {
-    mensagem_snapshot_id, forma_pagamento_id, tipo_entrega, data_retirada, local_entrega, observacoes,
+    mensagem_snapshot_id, tipo_entrega, data_retirada, local_entrega, observacoes,
   });
 }
 

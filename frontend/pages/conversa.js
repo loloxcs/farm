@@ -291,7 +291,7 @@ function linhasDoEvento(e, estado) {
       return [
         `Total: ${formatarMoeda(e.total)}`,
         entrega,
-        e.forma_combinada ? `Pagamento combinado: ${e.forma_combinada}` : null,
+        e.forma_combinada ? `Pagamento escolhido pelo cliente: ${e.forma_combinada}` : 'Pagamento: o cliente escolhe ao pagar',
         estado.user.role === 'agricultor'
           ? 'Confirme o pedido para liberar o pagamento ao cliente.'
           : 'Aguardando o agricultor confirmar o pedido.',
@@ -300,7 +300,7 @@ function linhasDoEvento(e, estado) {
       return [
         `Total: ${formatarMoeda(e.total)}`,
         entrega,
-        e.forma_combinada ? `Pagamento combinado: ${e.forma_combinada}` : null,
+        e.forma_combinada ? `Pagamento escolhido pelo cliente: ${e.forma_combinada}` : 'Pagamento: o cliente escolhe ao pagar',
         estado.user.role === 'cliente' ? 'Você já pode pagar.' : 'O cliente já pode pagar.',
       ];
     case 'pagamento_informado':
@@ -506,6 +506,14 @@ function montarBolhaSnapshot(bolha, m, estado, minha) {
   totalBox.appendChild(el('span', { text: 'Total' }));
   totalBox.appendChild(el('strong', { text: formatarMoeda(snap.total || 0) }));
   bolha.appendChild(totalBox);
+
+  // Forma de pagamento que o cliente escolheu ao enviar o carrinho
+  if (snap.pagamento?.rotulo) {
+    bolha.appendChild(el('p', {
+      className: 'snap-pagamento',
+      text: `${minha ? 'Você quer pagar com' : 'Quer pagar com'}: ${snap.pagamento.rotulo}`,
+    }));
+  }
 
   // Botão "Gerar pedido" — só pra agricultor e quando a snapshot é da outra parte (cliente)
   // Fase D: ativado. Abre o modal de criação de pedido.

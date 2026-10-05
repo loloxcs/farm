@@ -45,6 +45,13 @@ function fraseProximoPasso(pedido) {
   return `O pedido estará disponível para retirada${quando ? ` em ${quando}` : ''}${local ? `, em: ${local}` : ''}.`;
 }
 
+/** "Pagamento escolhido pelo cliente: PIX" / "... o cliente escolhe ao pagar". */
+function frasePagamento(pedido) {
+  return pedido.forma_pagamento?.nome
+    ? `Pagamento escolhido pelo cliente: ${pedido.forma_pagamento.nome}`
+    : 'Forma de pagamento: o cliente escolhe ao pagar';
+}
+
 function textoDoEvento(tipo, { pedido, pagamento, atorNome, motivo }) {
   const numero = `#${pedido.id}`;
   const valor = moeda(pagamento?.valor ?? pedido.total);
@@ -53,10 +60,10 @@ function textoDoEvento(tipo, { pedido, pagamento, atorNome, motivo }) {
   switch (tipo) {
     case 'pedido_criado':
       return `Pedido ${numero} gerado a partir do carrinho · ${moeda(pedido.total)} · ${resumoEntrega(pedido)} · `
-        + `Pagamento combinado: ${pedido.forma_pagamento?.nome || 'a combinar'}.`;
+        + `${frasePagamento(pedido)}.`;
     case 'pedido_confirmado':
       return `Pedido ${numero} confirmado por ${atorNome}. ${resumoEntrega(pedido)}. `
-        + `Pagamento combinado: ${pedido.forma_pagamento?.nome || 'a combinar'} — o cliente já pode pagar.`;
+        + `${frasePagamento(pedido)} — o cliente já pode pagar.`;
     case 'pagamento_informado':
       return `${atorNome} informou o pagamento de ${valor} via ${metodo} (pedido ${numero}). `
         + 'Aguardando o agricultor confirmar o recebimento.';

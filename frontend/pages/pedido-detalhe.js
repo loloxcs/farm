@@ -6,7 +6,7 @@
 //   - bloco 1: header (id, status, datas)
 //   - bloco 2: partes envolvidas (cliente, agricultor com link)
 //   - bloco 3: itens (tabela com nome, qtd, preço, subtotal, total)
-//   - bloco 4: detalhes (entrega ou retirada, forma combinada, observações)
+//   - bloco 4: detalhes (entrega ou retirada, forma de pagamento escolhida pelo cliente, observações)
 //   - bloco 5: pagamento — situação + ações de cada lado:
 //         cliente    → pagar / informar de novo / trocar a forma
 //         agricultor → confirmar recebimento / avisar que não localizou
@@ -268,8 +268,8 @@ function renderDetalhes(pedido) {
 
   const fpNome = pedido.forma_pagamento?.nome
     || pedido.forma_pagamento_nome
-    || `#${pedido.forma_pagamento_id || '—'}`;
-  celula('Forma de pagamento combinada', fpNome);
+    || 'O cliente escolhe ao pagar';
+  celula('Forma de pagamento (escolhida pelo cliente)', fpNome);
 
   wrap.appendChild(grid);
 

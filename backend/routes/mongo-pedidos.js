@@ -7,7 +7,7 @@ const { obrigatorio, inteiroPositivo, paginacao, emEnum } = require('../utils/va
 const { httpError } = require('../middleware/error');
 const { asyncRoute, idParam } = require('../utils/mongo-helpers');
 const {
-  METODOS, TIPOS_ENTREGA, metodoCombinado, metodosAceitos, rotuloMetodo,
+  METODOS, TIPOS_ENTREGA, metodoCombinado, formaDoMetodo, metodosAceitos, rotuloMetodo,
   serializarPagamento, resumoPagamento, permissoesPagamento,
 } = require('../utils/pagamentos');
 const { publicarEvento } = require('../utils/mensagens-sistema');
@@ -95,9 +95,8 @@ function exigirPedidoPagavel(order) {
 
 router.post('/', requireAuth, requireRole('agricultor'), asyncRoute(async (req, res) => {
   const body = req.body || {};
-  obrigatorio(body, ['mensagem_snapshot_id', 'forma_pagamento_id']);
+  obrigatorio(body, ['mensagem_snapshot_id']);
   const messageId = inteiroPositivo(body.mensagem_snapshot_id, 'mensagem_snapshot_id');
-  const formaId = inteiroPositivo(body.forma_pagamento_id, 'forma_pagamento_id');
   const tipoEntrega = body.tipo_entrega ?? 'retirada';
   emEnum(tipoEntrega, 'tipo_entrega', TIPOS_ENTREGA);
   const localEntrega = textoOpcional(body.local_entrega, 'local_entrega', LOCAL_MAX);
@@ -114,12 +113,14 @@ router.post('/', requireAuth, requireRole('agricultor'), asyncRoute(async (req, 
     throw httpError(403, 'FORBIDDEN', 'Você não é o destinatário desta snapshot');
   }
 
-  const form = await db.collection('formas_pagamento').findOne({ id: formaId });
-  if (!form) throw httpError(404, 'NOT_FOUND', 'Forma de pagamento não encontrada');
   const snapshot = payloadSnapshot(message);
   if (!Array.isArray(snapshot?.itens) || !snapshot.itens.length) {
     throw httpError(400, 'VALIDATION', 'Snapshot sem itens');
   }
+  // A forma de pagamento é a que o CLIENTE escolheu ao enviar o carrinho. O
+  // agricultor não escolhe: se o cliente não informou (carrinhos antigos), fica
+  // em aberto e ele define na hora de pagar.
+  const form = formaDoMetodo(snapshot.pagamento?.metodo);
 
   const orderId = await nextId('pedidos');
   const client = await getMongoClient();
@@ -168,8 +169,8 @@ router.post('/', requireAuth, requireRole('agricultor'), asyncRoute(async (req, 
         mensagem_snapshot_id: messageId,
         cliente_id: conversation.cliente_id,
         agricultor_id: conversation.agricultor_id,
-        forma_pagamento_id: form.id,
-        forma_pagamento: { id: form.id, nome: form.nome },
+        forma_pagamento_id: form?.id ?? null,
+        forma_pagamento: form,
         status: 'pendente',
         total: Number(items.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2)),
         observacoes: body.observacoes || null,
@@ -228,7 +229,7 @@ router.get('/:id/pagamento', requireAuth, asyncRoute(async (req, res) => {
   ]);
 
   const agreed = metodoCombinado(order);
-  // O método combinado no pedido vale mesmo que o agricultor mude o perfil depois.
+  // A forma que o cliente escolheu no carrinho vale mesmo que o agricultor mude o perfil depois.
   const accepted = [...new Set([...(agreed ? [agreed] : []), ...metodosAceitos(farmer?.perfil)])];
   const payable = ['confirmado', 'entregue'].includes(order.status);
   // A chave PIX só aparece para o próprio agricultor ou para o cliente de um pedido já confirmado.

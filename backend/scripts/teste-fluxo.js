@@ -131,15 +131,19 @@ async function fluxo() {
   r = await api('POST', `/conversas/com/${ag.usuario.id}/mensagens`, { token: cl.token, body: { conteudo: 'Olá, tem tomate?' } });
   confere('mensagem de texto enviada', r.status === 201 && r.dados.conversa_id, r);
   const conversaId = r.dados.conversa_id;
-  r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token });
-  confere('carrinho enviado pelo chat', r.status === 201 && r.dados.mensagem.snapshot_json.total === 24, r);
+  r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token, body: { metodo_pagamento: 'bitcoin' } });
+  confere('forma de pagamento inválida no carrinho é recusada', r.status === 400, r);
+  r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token, body: { metodo_pagamento: 'pix' } });
+  confere('carrinho enviado pelo chat com a forma escolhida pelo cliente (PIX)', r.status === 201 && r.dados.mensagem.snapshot_json.total === 24 && r.dados.mensagem.snapshot_json.pagamento?.metodo === 'pix', r);
   const snapshotId = r.dados.mensagem.id;
-  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: snapshotId, forma_pagamento_id: 2, tipo_entrega: 'entrega', local_entrega: 'Rua A, 1' } });
+  // o agricultor até tenta mandar outra forma: quem decide é o cliente
+  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: snapshotId, forma_pagamento_id: 1, tipo_entrega: 'entrega', local_entrega: 'Rua A, 1' } });
   confere('pedido gerado (transação)', r.status === 201 && r.dados.total === 24 && r.dados.status === 'pendente', r);
+  confere('pedido fica com a forma do cliente, não a do agricultor', r.dados.forma_pagamento?.nome === 'PIX' && r.dados.metodo_combinado === 'pix', r.dados?.forma_pagamento);
   const pedido = r.dados;
   let produtoSalvo = await db.collection('produtos').findOne({ id: tomate.id });
   confere('estoque baixou de 12 para 9 no MongoDB', produtoSalvo.estoque === 9, produtoSalvo.estoque);
-  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: snapshotId, forma_pagamento_id: 2 } });
+  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: snapshotId } });
   confere('mesmo carrinho não gera dois pedidos', r.status === 400 && (await conta('pedidos')) === 1, r);
 
   console.log('\nPagamento, entrega e avaliação');
@@ -164,8 +168,8 @@ async function fluxo() {
 
   console.log('\nCancelamento devolve o estoque');
   r = await api('POST', `/carrinho/${ag.usuario.id}/itens`, { token: cl.token, body: { produto_id: tomate.id, quantidade: 1 } });
-  r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token });
-  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: r.dados.mensagem.id, forma_pagamento_id: 1 } });
+  r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token, body: { metodo_pagamento: 'cash' } });
+  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: r.dados.mensagem.id } });
   const pedido2 = r.dados;
   produtoSalvo = await db.collection('produtos').findOne({ id: tomate.id });
   const estoqueReservado = produtoSalvo.estoque;
@@ -174,7 +178,7 @@ async function fluxo() {
   confere('cliente cancela e o estoque volta', r.status === 200 && r.dados.status === 'cancelado' && estoqueReservado === 5 && produtoSalvo.estoque === 9, { estoqueReservado, depois: produtoSalvo.estoque });
   r = await api('POST', `/carrinho/${ag.usuario.id}/itens`, { token: cl.token, body: { produto_id: tomate.id, quantidade: 50 } });
   r = await api('POST', `/conversas/com/${ag.usuario.id}/snapshot`, { token: cl.token });
-  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: r.dados.mensagem.id, forma_pagamento_id: 1 } });
+  r = await api('POST', '/pedidos', { token: ag.token, body: { mensagem_snapshot_id: r.dados.mensagem.id } });
   produtoSalvo = await db.collection('produtos').findOne({ id: tomate.id });
   confere('pedido maior que o estoque é recusado e nada muda', r.status === 400 && r.dados.error?.code === 'ESTOQUE_INSUFICIENTE' && produtoSalvo.estoque === 9 && (await conta('pedidos')) === 2, r);
 

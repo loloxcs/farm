@@ -901,6 +901,20 @@ button {
 
 .carrinho-erro-slot:empty { display: none; }
 
+/* Forma de pagamento escolhida pelo cliente antes de enviar o carrinho */
+.carrinho-pagamento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.carrinho-pagamento-titulo { margin: 0; font-size: 1.05rem; }
+.carrinho-pagamento .pagamento-metodos { margin-top: var(--space-2); }
+.modal-forma-pagamento-valor { font-size: 1.05rem; }
+
 .carrinho-acoes {
   display: flex;
   gap: var(--space-3);
@@ -1173,6 +1187,12 @@ button {
 .snap-total strong {
   color: var(--color-primary);
   font-size: 1.1rem;
+}
+
+.snap-pagamento {
+  margin: var(--space-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
 }
 
 .snap-btn-pedido {
