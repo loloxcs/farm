@@ -1,13 +1,18 @@
 {
   "name": "marketplace-agricultura-familiar-backend",
   "version": "1.0.0",
-  "description": "Backend REST do Marketplace de Agricultura Familiar (Fase 2)",
+  "description": "Backend REST do Marketplace de Agricultura Familiar (MongoDB)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "db:init": "node db/init.js",
-    "db:reset": "node db/init.js"
+    "db:init": "node db/init-mongo.js",
+    "db:setup": "node db/setup-mongo.js",
+    "db:migrate": "node db/migrate-sqlite-to-mongo.js",
+    "db:check": "node db/check-mongo.js",
+    "db:reset": "node db/reset-mongo.js",
+    "db:sqlite-reset": "node db/init.js",
+    "test:fluxo": "node scripts/teste-fluxo.js"
   },
   "engines": {
     "node": ">=18.0.0"

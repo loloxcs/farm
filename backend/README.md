@@ -1,6 +1,6 @@
 # Marketplace Agricultura Familiar — Backend (Fase 2)
 
-API REST em Node.js + Express + SQLite que implementa os requisitos funcionais RF01–RF13 do projeto: cadastro/login, perfis de agricultor, produtos e categorias, carrinho por par cliente-agricultor, chat com snapshot, pedidos via snapshot e avaliações.
+API REST em Node.js + Express + MongoDB (Atlas) que implementa os requisitos funcionais RF01–RF13 do projeto: cadastro/login, perfis de agricultor, produtos e categorias, carrinho por par cliente-agricultor, chat com snapshot, pedidos via snapshot e avaliações.
 
 ---
 
@@ -9,7 +9,7 @@ API REST em Node.js + Express + SQLite que implementa os requisitos funcionais R
 - **Node.js 18+** (testado em 18, 20 e 22)
 - **npm** (vem com o Node)
 
-Nada além disso. SQLite é embutido no `better-sqlite3`. Não precisa instalar Postgres, Docker ou serviço externo.
+E um cluster no **MongoDB Atlas** (o plano gratuito serve): todos os dados do sistema ficam lá. Não há banco local para instalar.
 
 ---
 
@@ -18,8 +18,8 @@ Nada além disso. SQLite é embutido no `better-sqlite3`. Não precisa instalar 
 1. Descompactar o `.zip`
 2. `cd backend`
 3. `npm install`
-4. `cp ../.env.example .env` e abrir o arquivo para ajustar `JWT_SECRET` para qualquer string longa e aleatória (ex.: `openssl rand -hex 32`). Para habilitar pagamentos simulados, configurar também `MONGO_URI` com a URI do Atlas; o banco usado é `farm`.
-5. `npm run db:init`
+4. `cp ../.env.example .env` e abrir o arquivo para ajustar `JWT_SECRET` (qualquer string longa e aleatória, ex.: `openssl rand -hex 32`) e `MONGO_URI` (string de conexão do Atlas). No Atlas, liberar o IP da máquina em **Network Access**.
+5. `npm run db:setup` — cria coleções, índices e catálogos no MongoDB e, na primeira vez, copia os dados do antigo `database.sqlite` (se existir). Não apaga nada; pode rodar sempre.
 6. `npm run dev`
 7. Confirmar que subiu — você deve ver no console:
 
@@ -47,20 +47,22 @@ curl http://localhost:3000/api/health
 | `PORT` | Porta HTTP do servidor | `3000` |
 | `JWT_SECRET` | Segredo HMAC para assinar/validar JWTs. **Trocar antes de subir.** | `9f2a8b...` (>=32 chars aleatórios) |
 | `JWT_EXPIRES_IN` | Validade do token. Aceita formatos do `jsonwebtoken` (`240h`, `10d`, etc.) | `240h` |
-| `DB_PATH` | Caminho do arquivo SQLite, relativo ao diretório `backend/` | `./database.sqlite` |
-| `MONGO_URI` | URI do MongoDB Atlas para persistência de pagamentos simulados | `mongodb+srv://...` |
+| `MONGO_URI` | **Obrigatória.** String de conexão do MongoDB Atlas | `mongodb+srv://usuario:senha@cluster.../` |
+| `MONGO_DB` | Nome do banco dentro do cluster (opcional) | `farm` |
+| `DB_PATH` | Só para a migração única: caminho do antigo arquivo SQLite | `./database.sqlite` |
+| `APP_TIMEZONE` | Fuso usado nos textos automáticos do chat (opcional) | `America/Sao_Paulo` |
 
-O domínio principal (usuários, produtos, carrinhos, conversas e pedidos) continua no SQLite. Somente os pagamentos simulados são gravados na coleção `pagamentos` do banco MongoDB `farm`. O checkout nunca persiste número completo do cartão, validade, CVV ou chave Pix.
+Todo o domínio (usuários, produtos e estoque, carrinhos, conversas, pedidos, pagamentos, avaliações e imagens) é gravado no MongoDB, banco `farm`. O checkout nunca persiste número completo do cartão, validade ou CVV.
 
 ---
 
 ## d) Estrutura de pastas
 
-**`db/`** — Banco e migração. `schema.sql` tem as 13 tabelas e os triggers (média de avaliações, validação de mensagem texto/snapshot, `updated_at` automático). `seeds.sql` popula as 8 categorias e as 5 formas de pagamento. `init.js` apaga e recria o banco do zero (chamado por `npm run db:init`). `connection.js` exporta uma instância única do `better-sqlite3` reusada por todo o app.
+**`db/`** — Banco. `mongodb.js` abre a conexão única com o Atlas, define as coleções e índices e expõe `nextId()` (ids numéricos sequenciais via coleção `contadores`). Scripts: `init-mongo.js` (`db:init`, cria o que faltar), `setup-mongo.js` (`db:setup`, init + migração), `migrate-sqlite-to-mongo.js` (`db:migrate`, cópia única do banco antigo), `check-mongo.js` (`db:check`, diagnóstico só leitura) e `reset-mongo.js` (`db:reset`, apaga tudo). `schema.sql`, `seeds.sql`, `init.js` e `connection.js` são do antigo banco SQLite e só continuam aqui como referência/origem da migração.
 
 **`middleware/`** — Plumbing transversal. `auth.js` extrai e valida o JWT do header `Authorization: Bearer ...` e injeta `req.user = { id, role }`. `role.js` é uma fábrica que produz `requireRole('cliente')` ou `requireRole('agricultor')` para gating por papel. `error.js` é o handler central que formata todo erro como `{ error: { code, message, details? } }` com o status correto e expõe um helper `httpError(status, code, msg, details)` usado nas rotas para sinalizar erros estruturados.
 
-**`routes/`** — Um arquivo por domínio: `auth`, `agricultores`, `produtos` (mais imagens), `catalogos` (categorias e formas de pagamento), `carrinho`, `conversas` (chat e snapshot), `pedidos`, `avaliacoes`. Cada rota faz validação inline, persiste com `better-sqlite3` em transações quando necessário, e devolve JSON. Toda rota tem `try/catch` com `next(err)` para o handler global.
+**`routes/`** — Um arquivo por domínio: `auth`, `agricultores`, `produtos` (mais imagens), `catalogos` (categorias e formas de pagamento), `carrinho`, `conversas` (chat e snapshot), `pedidos`, `avaliacoes`. Os arquivos em uso são os `mongo-*.js` (os de mesmo nome sem o prefixo são a versão antiga em SQLite, não carregada pelo servidor). Cada rota faz validação inline, persiste no MongoDB — com transação onde mexe em estoque e pedido — e devolve JSON; erros vão para o handler global.
 
 **`utils/`** — Helpers puros. `senha.js` envelopa `bcryptjs` (`hashSenha` / `verificarSenha`). `validacao.js` tem checagens simples (`obrigatorio`, `exigirEmail`, `numeroPositivo`, `emEnum`, `paginacao`) que lançam `httpError(400, ...)` em falha.
 
@@ -288,8 +290,8 @@ curl $BASE/agricultores/1
 **Porta 3000 ocupada (`EADDRINUSE`)**
 Edite `.env` e mude `PORT=3001` (ou outro). Reinicie com `npm run dev`.
 
-**`SQLITE_CANTOPEN` ou erro de banco logo no start**
-Você ainda não rodou `npm run db:init`. Esse script apaga e recria o `database.sqlite` do zero — sempre que quiser começar limpo, rode de novo (alias: `npm run db:reset`).
+**"Não foi possível iniciar o backend com MongoDB" logo no start**
+O servidor explica a causa provável na linha seguinte. As mais comuns: IP não liberado no Atlas (**Network Access → Add Current IP Address**), senha errada no `MONGO_URI` ou `MONGO_URI` vazio no `.env`. Rode `npm run db:check` para o diagnóstico completo.
 
 **Token expirado (401 com `code: TOKEN_EXPIRED`)**
 Faça login de novo para obter um novo token. O default é 240 horas; pode aumentar em `JWT_EXPIRES_IN`.
@@ -297,8 +299,11 @@ Faça login de novo para obter um novo token. O default é 240 horas; pode aumen
 **Erro de CORS no frontend**
 O CORS já vem habilitado pra qualquer origem (`cors({ origin: true })`). Se ainda falhar, é porque o frontend está chamando outro host/porta sem `Authorization` corretamente formatado — confira com a aba Network do navegador se o header `Authorization: Bearer ...` está sendo enviado.
 
-**`Cannot find module 'better-sqlite3'`**
-Você esqueceu o `npm install`, ou ele falhou silenciosamente. Rode `npm install` de novo e olhe o output. `better-sqlite3` precisa de prebuilds nativas — em redes restritas pode falhar; teste com `npm install --foreground-scripts` para ver o erro real.
+**Quero começar do zero**
+`npm run db:reset -- --confirmar` apaga todos os dados do banco `farm` no Atlas e recria as coleções vazias. Atenção: o banco é online e compartilhado.
+
+**`Cannot find module 'mongodb'`**
+Você esqueceu o `npm install`, ou ele falhou silenciosamente. Rode `npm install` de novo e olhe o output.
 
 ---
 

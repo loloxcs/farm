@@ -101,6 +101,15 @@ export function formatarData(iso) {
   return d.toLocaleDateString('pt-BR');
 }
 
+/** Formata data ISO como "dd/mm/yyyy às HH:mm" (datas combinadas de entrega/retirada). */
+export function formatarDataHora(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${d.toLocaleDateString('pt-BR')} às ${hora}`;
+}
+
 /** Formata data ISO como HH:mm (usado nas bolhas de mensagem). */
 export function formatarHora(iso) {
   if (!iso) return '';

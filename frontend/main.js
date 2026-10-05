@@ -113,14 +113,15 @@ function exigirRole(roleEsperado, handler) {
 
 // Raiz → redireciona conforme estado de auth
 router.register('#/', ({ outlet }) => {
+  // Limpa ANTES do replace: o replace já começa a desenhar a página de destino
+  // na hora; limpar depois apagava o que ela tinha acabado de montar (tela em branco).
+  limpar(outlet);
   if (isAuthenticated()) {
     const u = getUser();
     router.replace(u?.role === 'agricultor' ? '#/meu-perfil' : '#/agricultores');
   } else {
     router.replace('#/agricultores');
   }
-  // outlet fica vazio; o replace dispara novo render imediato
-  limpar(outlet);
 });
 
 // Públicas — Fase A

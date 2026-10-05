@@ -1,4 +1,4 @@
-**Stack:** Node.js + Express + SQLite
+**Stack:** Node.js + Express + MongoDB (Atlas)
 **Auth:** JWT em `Authorization: Bearer <token>`
 **Base URL:** `/api`
 **Content-Type padrão:** `application/json` (exceto upload de imagens, que usa `multipart/form-data`)
@@ -536,10 +536,16 @@
   {
     "mensagem_snapshot_id": 5015,
     "forma_pagamento_id": 2,
+    "tipo_entrega": "entrega",
     "data_retirada": "2026-05-08T09:00:00Z",
+    "local_entrega": "Rua das Flores, 120 — Centro",
     "observacoes": "Trazer sacolas reutilizáveis"
   }
   ```
+  - `tipo_entrega` — `retirada` (padrão) ou `entrega`.
+  - `data_retirada` — data combinada; vale para retirada **e** entrega (o nome do campo foi mantido por compatibilidade).
+  - `local_entrega` — endereço de entrega ou ponto de retirada (opcional, até 200 caracteres).
+- **Efeito no chat:** publica a mensagem automática `pedido_criado` na conversa (ver seção 9).
 - **Response 201:**
   ```json
   {
@@ -549,8 +555,14 @@
     "agricultor_id": 12,
     "status": "pendente",
     "total": 13.5,
+    "cliente_nome": "Maria Silva",
+    "agricultor_nome": "João da Roça",
     "forma_pagamento": { "id": 2, "nome": "PIX" },
+    "metodo_combinado": "pix",
+    "tipo_entrega": "entrega",
     "data_retirada": "2026-05-08T09:00:00Z",
+    "local_entrega": "Rua das Flores, 120 — Centro",
+    "pagamento": null,
     "itens": [
       { "produto_id": 301, "nome_produto": "Alface crespa", "quantidade": 3, "preco_unit": 4.5, "subtotal": 13.5 }
     ],
@@ -558,7 +570,7 @@
   }
   ```
 - **Erros:**
-  - `400` mensagem não é do tipo snapshot, snapshot já virou pedido, estoque insuficiente em algum item, forma_pagamento_id inválida
+  - `400` mensagem não é do tipo snapshot, snapshot já virou pedido, estoque insuficiente em algum item, forma_pagamento_id inválida, `tipo_entrega` fora do enum, `data_retirada` mal formatada
   - `401` não autenticado
   - `403` agricultor não é o destinatário da snapshot
   - `404` mensagem ou forma de pagamento não encontrada
@@ -568,7 +580,7 @@
 
 ### `GET /api/pedidos`
 - **Auth:** qualquer logado
-- **Descrição:** Lista pedidos do usuário logado. Cliente vê os seus; agricultor vê os recebidos. Filtro opcional por status.
+- **Descrição:** Lista pedidos do usuário logado. Cliente vê os seus; agricultor vê os recebidos. Filtro opcional por status. Cada item traz `pagamento: { status, metodo, metodo_rotulo }` (ou `null`) para a coluna "Pagamento" da lista.
 - **Query params:**
   - `status` — `pendente` | `confirmado` | `entregue` | `cancelado`
   - `page`, `limit`
@@ -602,6 +614,10 @@
 - **Descrição:** Atualiza o status do pedido seguindo transições válidas:
   - **Agricultor:** `pendente → confirmado`, `confirmado → entregue`, qualquer → `cancelado`
   - **Cliente:** apenas `pendente → cancelado`
+- **Efeitos no pagamento e no chat:**
+  - `→ confirmado`: publica `pedido_confirmado` no chat (o cliente já pode pagar).
+  - `→ entregue`: se o pagamento estava `pagar_na_entrega` (dinheiro), ele vira `aprovado` na mesma transação; publica `pedido_entregue`.
+  - `→ cancelado`: devolve o estoque, marca o pagamento (se houver) como `cancelado` — com `devolucao_pendente: true` quando já estava aprovado — e publica `pedido_cancelado`.
 - **Request body:**
   ```json
   { "status": "confirmado" }
@@ -650,22 +666,6 @@
   - `404` agricultor ou pedido não encontrado
 - **RF coberto:** RF11
 
-### `GET /api/pedidos/:id/pagamento`
-- **Auth:** cliente dono do pedido
-- **Descrição:** Retorna o pagamento simulado salvo na coleção `pagamentos` do banco MongoDB `farm`, ou `null` quando ainda não existe.
-- **Response 200:** `{ "pagamento": { "pedido_id": 88, "metodo": "pix", "valor": 13.5, "status": "aprovado", "transacao_id": "..." } }`
-- **Erros:** `401` não autenticado; `403` usuário não é o cliente do pedido; `404` pedido inexistente; `503` MongoDB não configurado ou indisponível.
-
-### `POST /api/pedidos/:id/pagamento`
-- **Auth:** cliente dono do pedido
-- **Descrição:** Simula a aprovação de um pagamento para pedido confirmado ou entregue. Aceita `metodo`: `pix`, `credit_card`, `debit_card` ou `cash`; cartões também enviam `cartao_ultimos4`.
-- **Persistência:** registra pedido, cliente, agricultor, método, valor, status, referência simulada e, para cartão, somente os últimos quatro dígitos. Número completo, validade, CVV e chave Pix não são enviados nem guardados.
-- **Response 201:** objeto do pagamento com `status: "aprovado"` e `transacao_id`.
-- **Erros:** `400` método ou metadados inválidos; `401` não autenticado; `403` pedido não pertence ao cliente; `409` pedido não confirmado ou pagamento já registrado; `503` MongoDB indisponível.
-- **Observação:** pagamento acadêmico de demonstração; não processa transações reais.
-
----
-
 ### `GET /api/agricultores/:id/avaliacoes`
 - **Auth:** pública
 - **Descrição:** Lista avaliações recebidas pelo agricultor, mais recentes primeiro.
@@ -692,6 +692,102 @@
 
 ---
 
+## 9. Pagamento do pedido e confirmações no chat
+
+O dinheiro vai **direto do cliente para o agricultor** — a plataforma não processa transações reais. O que o sistema registra é o combinado e a confirmação de cada lado, e cada passo vira uma mensagem automática no chat entre os dois.
+
+| Método (`metodo`) | Como funciona | Status inicial |
+|---|---|---|
+| `pix`, `transfer` | Cliente paga por fora e **informa**; o agricultor **confirma** (ou contesta). | `aguardando_confirmacao` |
+| `cash` | Cliente avisa que paga em dinheiro na entrega/retirada; o agricultor confirma ao receber (ou ao marcar o pedido como entregue). | `pagar_na_entrega` |
+| `credit_card`, `debit_card` | **Simulação acadêmica**: aprovado na hora, nada é cobrado. | `aprovado` |
+
+Status do pagamento: `aguardando_confirmacao` → `aprovado` \| `recusado` (cliente pode informar de novo) · `pagar_na_entrega` → `aprovado` · qualquer → `cancelado` (pedido cancelado).
+
+O pagamento só existe para pedidos `confirmado` ou `entregue`. Fica na coleção `pagamentos` (um por pedido, `_id = pedido_id`), com um `historico` de eventos.
+
+### `GET /api/pedidos/:id/pagamento`
+- **Auth:** cliente **ou** agricultor do pedido
+- **Descrição:** Situação do pagamento, opções para o cliente pagar e o que quem está logado pode fazer agora.
+- **Response 200:**
+  ```json
+  {
+    "pagamento": {
+      "pedido_id": 88, "metodo": "pix", "metodo_rotulo": "PIX", "valor": 13.5,
+      "status": "aguardando_confirmacao", "simulado": false, "cartao_ultimos4": null,
+      "transacao_id": null, "observacao": "Paguei pelo Nubank", "motivo_recusa": null,
+      "devolucao_pendente": false, "registrado_por": "cliente",
+      "informado_em": "2026-05-06T15:00:00Z", "confirmado_em": null, "recusado_em": null,
+      "historico": [ { "evento": "pagamento_informado", "por": "cliente", "metodo": "pix", "em": "2026-05-06T15:00:00Z" } ]
+    },
+    "opcoes": {
+      "metodo_combinado": "pix",
+      "metodos": [ { "id": "pix", "rotulo": "PIX", "confirmacao": "agricultor", "combinado": true } ],
+      "chave_pix": "joao@email.com",
+      "agricultor_nome": "João da Roça"
+    },
+    "pode": { "pagar": false, "confirmar": false, "recusar": false }
+  }
+  ```
+  - `pagamento` é `null` enquanto ninguém registrou nada.
+  - `opcoes.metodos` = formas aceitas pelo agricultor (perfil) + a forma combinada no pedido.
+  - `opcoes.chave_pix` só é enviada ao próprio agricultor ou ao cliente de um pedido já confirmado.
+- **Erros:** `401` não autenticado; `403` usuário não é parte do pedido; `404` pedido inexistente.
+
+### `POST /api/pedidos/:id/pagamento`
+- **Auth:** cliente do pedido
+- **Descrição:** Cliente informa como pagou / vai pagar. Pode ser refeito enquanto o pagamento estiver `recusado` ou `pagar_na_entrega` (trocar de dinheiro para PIX, por exemplo).
+- **Request body:** `{ "metodo": "pix", "observacao": "Paguei pelo Nubank" }` — cartões também enviam `cartao_ultimos4`.
+- **Persistência:** número completo do cartão, validade e CVV **não** são enviados nem guardados; do cartão só ficam os quatro últimos dígitos.
+- **Efeito no chat:** `pagamento_informado`, `pagamento_na_entrega` ou `pagamento_confirmado` (cartão simulado).
+- **Response 201:** `{ "pagamento": { ... }, "pode": { ... } }`
+- **Erros:** `400` método inválido, método não aceito pelo agricultor (`METODO_NAO_ACEITO`), cartão sem os 4 dígitos; `401`; `403` pedido não é do cliente; `409` pedido não confirmado/cancelado (`PEDIDO_NAO_PAGAVEL`) ou pagamento já informado/aprovado (`PAGAMENTO_JA_REGISTRADO`).
+
+### `PATCH /api/pedidos/:id/pagamento`
+- **Auth:** agricultor do pedido
+- **Descrição:** Agricultor confirma ou contesta o recebimento.
+- **Request body:**
+  - `{ "acao": "confirmar" }` — `aguardando_confirmacao` \| `pagar_na_entrega` \| `recusado` → `aprovado`. Se o cliente não registrou nada (pagou em mãos), cria o pagamento já aprovado; aceita `metodo` opcional (padrão: o combinado no pedido).
+  - `{ "acao": "recusar", "motivo": "não caiu na conta" }` — `aguardando_confirmacao` → `recusado`. `motivo` é opcional (até 200 caracteres).
+- **Efeito no chat:** `pagamento_confirmado` (com a frase "será entregue em…" / "estará disponível para retirada…") ou `pagamento_recusado`.
+- **Response 200:** `{ "pagamento": { ... }, "pode": { ... } }`
+- **Erros:** `400` ação inválida; `401`; `403` usuário não é o agricultor do pedido; `409` pedido não pagável, pagamento já confirmado (`PAGAMENTO_JA_CONFIRMADO`) ou nada a contestar (`PAGAMENTO_NAO_CONTESTAVEL`).
+
+### `GET /api/agricultores/me/pagamento`
+- **Auth:** agricultor
+- **Descrição:** Dados de recebimento do agricultor logado: `{ "formas_aceitas": ["pix","cash"], "chave_pix": "joao@email.com", "metodos_disponiveis": [ { "id": "pix", "rotulo": "PIX" }, ... ] }`.
+- **Para alterar:** `PATCH /api/agricultores/me` com `formas_aceitas` (array com ao menos um método válido) e/ou `chave_pix` (até 140 caracteres; `null` remove). A resposta inclui `recebimento` com os valores salvos.
+- **Privacidade:** o perfil público (`GET /api/agricultores/:id`) expõe apenas `perfil.formas_aceitas`; a chave PIX nunca sai por ele.
+
+### Mensagens automáticas no chat (`tipo: "sistema"`)
+`GET /api/conversas/:id/mensagens` passa a devolver, além de `texto` e `snapshot`, mensagens `sistema` com:
+- `conteudo` — texto pronto (usado na prévia de `GET /api/conversas` e como fallback);
+- `evento` — dados para o front desenhar o cartão:
+  ```json
+  {
+    "tipo": "pagamento_confirmado", "pedido_id": 88, "pedido_status": "confirmado",
+    "total": 13.5, "valor": 13.5, "metodo": "pix", "metodo_rotulo": "PIX", "pagamento_status": "aprovado",
+    "tipo_entrega": "entrega", "data_retirada": "2026-05-08T09:00:00Z", "local_entrega": "Rua das Flores, 120 — Centro",
+    "forma_combinada": "PIX", "motivo": null, "devolucao_pendente": false,
+    "ator_id": 12, "ator_nome": "João da Roça", "ator_role": "agricultor"
+  }
+  ```
+
+| `evento.tipo` | Quando |
+|---|---|
+| `pedido_criado` | agricultor gera o pedido a partir do carrinho |
+| `pedido_confirmado` | agricultor confirma o pedido — cliente já pode pagar |
+| `pagamento_informado` | cliente informa PIX/transferência |
+| `pagamento_na_entrega` | cliente escolhe dinheiro na entrega/retirada |
+| `pagamento_confirmado` | agricultor confirma o recebimento (ou cartão simulado aprovado) |
+| `pagamento_recusado` | agricultor não localizou o pagamento |
+| `pedido_entregue` | agricultor marca como entregue/retirado |
+| `pedido_cancelado` | pedido cancelado por qualquer das partes |
+
+O horário usado no texto pronto segue `APP_TIMEZONE` (padrão `America/Sao_Paulo`).
+
+---
+
 ## Tabela resumo — RF × Endpoints
 
 | RF | Descrição | Endpoint(s) |
@@ -708,7 +804,7 @@
 | RF10 | Listagem de produtos | `GET /api/agricultores/:id/produtos` |
 | RF11 | Avaliações | `POST /api/avaliacoes`, `GET /api/agricultores/:id/avaliacoes` |
 | RF12 | Conversa única | `GET /api/conversas`, `POST /api/conversas/com/:outroId/mensagens` (UNIQUE no schema) |
-| RF13 | Pedido via snapshot | `GET /api/formas-pagamento`, `POST /api/pedidos`, `GET /api/pedidos`, `GET /api/pedidos/:id`, `PATCH /api/pedidos/:id/status`, `GET/POST /api/pedidos/:id/pagamento` |
+| RF13 | Pedido via snapshot | `GET /api/formas-pagamento`, `POST /api/pedidos`, `GET /api/pedidos`, `GET /api/pedidos/:id`, `PATCH /api/pedidos/:id/status`, `GET/POST/PATCH /api/pedidos/:id/pagamento`, `GET /api/agricultores/me/pagamento` |
 
 ---
 

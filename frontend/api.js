@@ -124,9 +124,18 @@ export function getAgricultor(id) {
   return request('GET', `/agricultores/${id}`);
 }
 
-/** PATCH /agricultores/me — RF03 (Fase C) */
+/** PATCH /agricultores/me — RF03 (Fase C). Aceita também `chave_pix` e `formas_aceitas`. */
 export function atualizarMeuPerfilAgricultor(patch) {
   return request('PATCH', '/agricultores/me', patch);
+}
+
+/**
+ * GET /agricultores/me/pagamento — dados de recebimento do agricultor logado
+ * ({ formas_aceitas, chave_pix, metodos_disponiveis }). A chave PIX não aparece
+ * no perfil público, por isso tem endpoint próprio.
+ */
+export function getMeuRecebimento() {
+  return request('GET', '/agricultores/me/pagamento');
 }
 
 // =============================================================
@@ -229,9 +238,17 @@ export function enviarSnapshot(agricultorId) {
 // 7. Pedidos (Fase D)
 // =============================================================
 
-/** POST /pedidos — RF13 (agricultor cria a partir de snapshot) */
-export function criarPedido({ mensagem_snapshot_id, forma_pagamento_id, data_retirada, observacoes }) {
-  return request('POST', '/pedidos', { mensagem_snapshot_id, forma_pagamento_id, data_retirada, observacoes });
+/**
+ * POST /pedidos — RF13 (agricultor cria a partir de snapshot).
+ * `tipo_entrega`: 'retirada' | 'entrega'. `data_retirada` é a data combinada
+ * (vale para os dois casos) e `local_entrega` o endereço ou ponto de retirada.
+ */
+export function criarPedido({
+  mensagem_snapshot_id, forma_pagamento_id, tipo_entrega, data_retirada, local_entrega, observacoes,
+}) {
+  return request('POST', '/pedidos', {
+    mensagem_snapshot_id, forma_pagamento_id, tipo_entrega, data_retirada, local_entrega, observacoes,
+  });
 }
 
 /** GET /pedidos — RF13 */
@@ -249,14 +266,31 @@ export function atualizarStatusPedido(id, status) {
   return request('PATCH', `/pedidos/${id}/status`, { status });
 }
 
-/** GET /pedidos/:id/pagamento — retorna o pagamento simulado no MongoDB. */
+/**
+ * GET /pedidos/:id/pagamento — cliente ou agricultor do pedido.
+ * Devolve { pagamento, opcoes: { metodos, metodo_combinado, chave_pix, agricultor_nome },
+ *           pode: { pagar, confirmar, recusar } }.
+ */
 export function getPagamentoPedido(id) {
   return request('GET', `/pedidos/${id}/pagamento`);
 }
 
-/** POST /pedidos/:id/pagamento — persiste apenas metadados não sensíveis. */
-export function simularPagamentoPedido(id, payload) {
+/**
+ * POST /pedidos/:id/pagamento — cliente informa o pagamento.
+ * payload: { metodo, cartao_ultimos4?, observacao? }. Nenhum dado sensível é enviado.
+ */
+export function informarPagamentoPedido(id, payload) {
   return request('POST', `/pedidos/${id}/pagamento`, payload);
+}
+
+/** PATCH /pedidos/:id/pagamento — agricultor confirma que recebeu. */
+export function confirmarPagamentoPedido(id, { metodo } = {}) {
+  return request('PATCH', `/pedidos/${id}/pagamento`, { acao: 'confirmar', metodo });
+}
+
+/** PATCH /pedidos/:id/pagamento — agricultor avisa que não localizou o pagamento. */
+export function recusarPagamentoPedido(id, motivo) {
+  return request('PATCH', `/pedidos/${id}/pagamento`, { acao: 'recusar', motivo });
 }
 
 // =============================================================

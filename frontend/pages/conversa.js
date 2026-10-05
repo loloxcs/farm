@@ -16,6 +16,12 @@
 //     2) ao desmontar a página (MutationObserver no outlet)
 //     3) idempotente: pararPolling() pode ser chamado várias vezes.
 //
+// Mensagens tipo 'sistema' (confirmações automáticas de pedido/pagamento):
+//   O backend publica uma a cada etapa — pedido gerado/confirmado, pagamento
+//   informado/confirmado/não localizado, entrega/retirada, cancelamento.
+//   Aqui viram cartões centralizados; o cartão MAIS RECENTE de cada pedido
+//   ganha o botão da próxima ação (pagar, confirmar recebimento...).
+//
 // Sem 'innerHTML' com dados do backend. Sempre via el() + textContent.
 
 import {
@@ -28,6 +34,10 @@ import {
 import { getUser } from '../auth.js';
 import { replace, navigate } from '../router.js';
 import { abrirModalGerarPedido } from './modal-gerar-pedido.js';
+import {
+  termosEntrega, resumoEntrega, fraseProximoPasso,
+  acaoConfirmarRecebimento, acaoContestarPagamento,
+} from '../pagamento-ui.js';
 
 const POLL_MS = 3000;
 const SNAPSHOT_ITENS_VISIVEIS = 5;
@@ -223,6 +233,15 @@ function redesenharMensagens(estado, listaWrap) {
     return;
   }
 
+  // Último evento de cada pedido: só ele mostra botões de ação (os anteriores
+  // já foram superados por uma etapa mais nova).
+  const ultimoEventoPorPedido = new Map();
+  for (const m of estado.mensagens) {
+    if (m.tipo === 'sistema' && m.evento?.pedido_id != null) {
+      ultimoEventoPorPedido.set(m.evento.pedido_id, m.id);
+    }
+  }
+
   // Agrupa por data para colocar um separador "Hoje", "12/05/2026" etc.
   let ultimoDia = null;
   for (const m of estado.mensagens) {
@@ -231,7 +250,196 @@ function redesenharMensagens(estado, listaWrap) {
       listaWrap.appendChild(el('div', { className: 'conversa-dia', text: dia || '—' }));
       ultimoDia = dia;
     }
-    listaWrap.appendChild(montarBolha(m, estado));
+    if (m.tipo === 'sistema') {
+      const ehUltimo = ultimoEventoPorPedido.get(m.evento?.pedido_id) === m.id;
+      listaWrap.appendChild(montarCartaoSistema(m, estado, listaWrap, ehUltimo));
+    } else {
+      listaWrap.appendChild(montarBolha(m, estado));
+    }
+  }
+}
+
+// ===================================================================
+// Cartões de sistema — confirmações de pedido e pagamento
+// ===================================================================
+const VISUAL_EVENTO = {
+  pedido_criado:        { classe: 'is-info',   icone: '📦', titulo: (e) => `Pedido #${e.pedido_id} gerado` },
+  pedido_confirmado:    { classe: 'is-info',   icone: '✓',  titulo: (e) => `Pedido #${e.pedido_id} confirmado` },
+  pagamento_informado:  { classe: 'is-espera', icone: '…',  titulo: () => 'Pagamento informado' },
+  pagamento_na_entrega: { classe: 'is-espera', icone: 'R$', titulo: (e) => `Pagamento em dinheiro ${termosEntrega(e).naHora}` },
+  pagamento_confirmado: { classe: 'is-ok',     icone: '✓',  titulo: () => 'Pagamento confirmado' },
+  pagamento_recusado:   { classe: 'is-alerta', icone: '!',  titulo: () => 'Pagamento não localizado' },
+  pedido_entregue:      { classe: 'is-ok',     icone: '✓',  titulo: (e) => `Pedido #${e.pedido_id} ${termosEntrega(e).ehEntrega ? 'entregue' : 'retirado'}` },
+  pedido_cancelado:     { classe: 'is-neutro', icone: '×',  titulo: (e) => `Pedido #${e.pedido_id} cancelado` },
+};
+
+/** Linhas de detalhe do cartão, escritas do ponto de vista de quem está lendo. */
+function linhasDoEvento(e, estado) {
+  const souAtor = Number(e.ator_id) === Number(estado.user.id);
+  const quem = souAtor ? 'Você' : (e.ator_nome || 'A outra parte');
+  const valor = formatarMoeda(e.valor ?? e.total);
+  // O evento carrega os mesmos campos do pedido usados pelos helpers de entrega.
+  const pedido = {
+    tipo_entrega: e.tipo_entrega, data_retirada: e.data_retirada,
+    local_entrega: e.local_entrega, status: e.pedido_status,
+  };
+  const t = termosEntrega(pedido);
+  const entrega = [resumoEntrega(pedido), e.local_entrega].filter(Boolean).join(' · ');
+
+  switch (e.tipo) {
+    case 'pedido_criado':
+      return [
+        `Total: ${formatarMoeda(e.total)}`,
+        entrega,
+        e.forma_combinada ? `Pagamento combinado: ${e.forma_combinada}` : null,
+        estado.user.role === 'agricultor'
+          ? 'Confirme o pedido para liberar o pagamento ao cliente.'
+          : 'Aguardando o agricultor confirmar o pedido.',
+      ];
+    case 'pedido_confirmado':
+      return [
+        `Total: ${formatarMoeda(e.total)}`,
+        entrega,
+        e.forma_combinada ? `Pagamento combinado: ${e.forma_combinada}` : null,
+        estado.user.role === 'cliente' ? 'Você já pode pagar.' : 'O cliente já pode pagar.',
+      ];
+    case 'pagamento_informado':
+      return [
+        `${quem} informou o pagamento de ${valor} via ${e.metodo_rotulo}.`,
+        estado.user.role === 'agricultor'
+          ? 'Confira se o valor chegou e confirme o recebimento.'
+          : 'Aguardando o agricultor confirmar o recebimento.',
+      ];
+    case 'pagamento_na_entrega':
+      return [
+        `${quem} vai pagar ${valor} em dinheiro ${t.naHora}.`,
+        fraseProximoPasso(pedido),
+      ];
+    case 'pagamento_confirmado':
+      return [
+        `${valor} via ${e.metodo_rotulo}${e.ator_role === 'cliente' ? ' (simulação)' : ''}.`,
+        fraseProximoPasso(pedido),
+      ];
+    case 'pagamento_recusado':
+      return [
+        `${quem} não localizou o pagamento de ${valor} via ${e.metodo_rotulo}.`,
+        e.motivo ? `Motivo: ${e.motivo}` : null,
+        estado.user.role === 'cliente'
+          ? 'Confira no seu banco e informe o pagamento novamente.'
+          : 'O cliente pode informar o pagamento de novo.',
+      ];
+    case 'pedido_entregue':
+      return [
+        e.pagamento_status === 'aprovado' ? 'Pagamento recebido.' : 'Pagamento ainda não confirmado.',
+        estado.user.role === 'cliente' ? 'Que tal avaliar o agricultor?' : null,
+      ];
+    case 'pedido_cancelado':
+      return [
+        `Cancelado por ${souAtor ? 'você' : (e.ator_nome || 'outra parte')}.`,
+        e.devolucao_pendente ? `Havia um pagamento confirmado de ${valor} — combinem a devolução por aqui.` : null,
+      ];
+    default:
+      return [];
+  }
+}
+
+function montarCartaoSistema(m, estado, listaWrap, ehUltimo) {
+  const e = m.evento || {};
+  const visual = VISUAL_EVENTO[e.tipo];
+  const wrap = el('div', { className: 'bolha-wrap bolha-sistema-wrap' });
+  const cartao = el('div', {
+    className: `bolha-sistema ${visual?.classe || 'is-neutro'}`,
+    attrs: { role: 'note' },
+  });
+
+  if (!visual) {
+    // Evento desconhecido (versão mais nova do backend): mostra o texto pronto.
+    cartao.appendChild(el('p', { className: 'bolha-sistema-linha', text: m.conteudo || 'Atualização do pedido' }));
+    wrap.appendChild(cartao);
+    return wrap;
+  }
+
+  const cab = el('div', { className: 'bolha-sistema-cab' });
+  cab.appendChild(el('span', {
+    className: 'bolha-sistema-icone', text: visual.icone, attrs: { 'aria-hidden': 'true' },
+  }));
+  cab.appendChild(el('strong', { className: 'bolha-sistema-titulo', text: visual.titulo(e) }));
+  cartao.appendChild(cab);
+
+  for (const linha of linhasDoEvento(e, estado)) {
+    if (linha) cartao.appendChild(el('p', { className: 'bolha-sistema-linha', text: linha }));
+  }
+
+  const erro = el('div', { className: 'bolha-sistema-erro' });
+  cartao.appendChild(erro);
+
+  const acoes = el('div', { className: 'bolha-sistema-acoes' });
+  if (ehUltimo) adicionarAcoesDoEvento(acoes, e, estado, listaWrap, erro);
+  acoes.appendChild(el('a', {
+    className: 'btn btn-ghost bolha-sistema-link',
+    text: 'Ver pedido',
+    attrs: { href: `#/pedidos/${e.pedido_id}` },
+  }));
+  cartao.appendChild(acoes);
+
+  cartao.appendChild(el('span', { className: 'bolha-hora', text: formatarHora(m.created_at) }));
+  wrap.appendChild(cartao);
+  return wrap;
+}
+
+/** Botão da próxima etapa — só no cartão mais recente de cada pedido. */
+function adicionarAcoesDoEvento(acoes, e, estado, listaWrap, erro) {
+  const ehCliente = estado.user.role === 'cliente';
+  const linkPagar = (texto) => el('a', {
+    className: 'btn btn-primary',
+    text: texto,
+    attrs: { href: `#/pedidos/${e.pedido_id}/pagamento` },
+  });
+
+  if (ehCliente && e.tipo === 'pedido_confirmado') acoes.appendChild(linkPagar('Pagar agora'));
+  if (ehCliente && e.tipo === 'pagamento_recusado') acoes.appendChild(linkPagar('Informar pagamento novamente'));
+  if (ehCliente && e.tipo === 'pedido_entregue') {
+    acoes.appendChild(el('a', {
+      className: 'btn btn-primary',
+      text: 'Avaliar',
+      attrs: { href: `#/pedidos/${e.pedido_id}` },
+    }));
+  }
+
+  if (!ehCliente && e.tipo === 'pedido_criado') {
+    acoes.appendChild(el('a', {
+      className: 'btn btn-primary',
+      text: 'Abrir pedido para confirmar',
+      attrs: { href: `#/pedidos/${e.pedido_id}` },
+    }));
+  }
+  if (!ehCliente && e.tipo === 'pagamento_informado') {
+    const executar = (acao) => async (ev) => {
+      const botoes = acoes.querySelectorAll('button');
+      limpar(erro);
+      botoes.forEach((b) => { b.disabled = true; });
+      try {
+        const resposta = await acao();
+        // Em sucesso o backend publica o cartão seguinte; buscamos já, sem esperar o polling.
+        if (resposta && typeof estado.atualizarAgora === 'function') await estado.atualizarAgora();
+      } catch (err) {
+        erro.appendChild(bannerErro(err));
+      }
+      // O cartão pode ter sido redesenhado; se ainda existir, reabilita.
+      if (ev.target.isConnected) botoes.forEach((b) => { b.disabled = false; });
+    };
+    acoes.appendChild(el('button', {
+      className: 'btn btn-primary',
+      text: 'Confirmar recebimento',
+      attrs: { type: 'button' },
+      on: { click: executar(() => acaoConfirmarRecebimento({ pedidoId: e.pedido_id, valor: e.valor, metodo: e.metodo })) },
+    }));
+    acoes.appendChild(el('button', {
+      className: 'btn btn-ghost pedido-acao-destrutiva',
+      text: 'Não recebi',
+      attrs: { type: 'button' },
+      on: { click: executar(() => acaoContestarPagamento({ pedidoId: e.pedido_id })) },
+    }));
   }
 }
 
@@ -488,6 +696,8 @@ function iniciarPolling(estado, listaWrap) {
   };
 
   estado.pollTimer = setInterval(tick, POLL_MS);
+  // Permite buscar na hora depois de uma ação (ex.: confirmar recebimento no cartão).
+  estado.atualizarAgora = tick;
 }
 
 function pararPolling(estado) {

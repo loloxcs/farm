@@ -2,11 +2,13 @@
 #
 # run.sh — Inicia o projeto (backend + frontend) SEM resetar o banco.
 #
-# - Backend (Express + SQLite) em http://localhost:3000
-# - Frontend (HTML/JS estático)  em http://localhost:5500
+# - Backend (Express + MongoDB Atlas) em http://localhost:3000
+# - Frontend (HTML/JS estático)       em http://localhost:5500
 #
-# O banco NÃO é apagado. Se ele ainda não existir, é criado uma vez.
-# Para resetar o banco do zero, use ./reset.sh
+# O banco fica no MongoDB (MONGO_URI em backend/.env) e NÃO é apagado.
+# A cada início o script confere coleções/índices e, só na primeira vez,
+# copia os dados do antigo database.sqlite para o MongoDB.
+# Para apagar tudo e começar do zero, use ./reset.sh
 #
 # Uso:  ./run.sh
 # Parar: Ctrl+C (encerra backend e frontend juntos)
@@ -34,17 +36,25 @@ fi
 
 # --- dependências do backend (instala só se faltar) ---
 cd "$BACKEND_DIR"
-if [ ! -d node_modules ]; then
+if [ ! -d node_modules ] || [ ! -d node_modules/mongodb ]; then
   echo "==> Instalando dependências do backend (npm install)..."
   npm install
 fi
 
-# --- banco: cria só se NÃO existir (nunca reseta aqui) ---
-if [ ! -f database.sqlite ]; then
-  echo "==> Banco não encontrado — criando pela primeira vez (npm run db:init)..."
-  npm run db:init
-else
-  echo "==> Banco existente preservado (use ./reset.sh para resetar)."
+# --- configuração: backend/.env com MONGO_URI ---
+if [ ! -f .env ]; then
+  echo "ERRO: backend/.env não existe. Crie com:  cp .env.example backend/.env"
+  echo "      e preencha JWT_SECRET e MONGO_URI (string de conexão do MongoDB Atlas)."
+  exit 1
+fi
+
+# --- banco: confere coleções/índices e migra o SQLite antigo na 1ª vez (nunca apaga) ---
+echo "==> Preparando o MongoDB (npm run db:setup)..."
+if ! npm run --silent db:setup; then
+  echo ""
+  echo "ERRO: não foi possível preparar o MongoDB — veja a explicação acima."
+  echo "      Diagnóstico: cd backend && npm run db:check"
+  exit 1
 fi
 
 # --- escolhe servidor estático para o frontend ---

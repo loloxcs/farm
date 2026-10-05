@@ -4,6 +4,8 @@
 // Carrega em paralelo:
 //   GET /auth/me                → { id, nome, email, role, telefone }
 //   GET /agricultores/:id       → { nome, telefone, perfil: { ... } }
+//   GET /agricultores/me/pagamento → { formas_aceitas, chave_pix, metodos_disponiveis }
+//                                 (chave PIX é privada; não vem no perfil público)
 //
 // Submit: monta um PATCH só com os campos que mudaram em relação ao estado inicial.
 // Se o `nome` mudar, atualiza também o getUser() no localStorage e dispara
@@ -14,7 +16,7 @@ import {
   loading, toast, campoUploadFoto,
 } from '../ui.js';
 import {
-  authMe, getAgricultor, atualizarMeuPerfilAgricultor,
+  authMe, getAgricultor, atualizarMeuPerfilAgricultor, getMeuRecebimento,
 } from '../api.js';
 import { getUser, setUser } from '../auth.js';
 import { navigate } from '../router.js';
@@ -22,6 +24,23 @@ import { navigate } from '../router.js';
 const DESC_MAX = 600;
 const CEP_RE = /^\d{5}-?\d{3}$/;
 const UF_RE = /^[A-Z]{2}$/;
+const CHAVE_PIX_MAX = 140;
+
+// Usado se o backend não devolver a lista (mantém a tela funcionando).
+const METODOS_PADRAO = [
+  { id: 'pix', rotulo: 'PIX' },
+  { id: 'transfer', rotulo: 'Transferência bancária' },
+  { id: 'cash', rotulo: 'Dinheiro' },
+  { id: 'credit_card', rotulo: 'Cartão de crédito' },
+  { id: 'debit_card', rotulo: 'Cartão de débito' },
+];
+const DICA_METODO = {
+  pix: 'Cliente paga na sua chave; você confirma o recebimento.',
+  transfer: 'Você passa os dados bancários pelo chat e confirma quando cair.',
+  cash: 'Pago em mãos na entrega ou retirada.',
+  credit_card: 'Simulado nesta versão — aprovado na hora.',
+  debit_card: 'Simulado nesta versão — aprovado na hora.',
+};
 
 export async function renderMeuPerfil({ outlet }) {
   limpar(outlet);
@@ -34,11 +53,12 @@ export async function renderMeuPerfil({ outlet }) {
     return;
   }
 
-  let me, agricultor;
+  let me, agricultor, recebimento;
   try {
-    [me, agricultor] = await Promise.all([
+    [me, agricultor, recebimento] = await Promise.all([
       authMe(),
       getAgricultor(user.id),
+      getMeuRecebimento(),
     ]);
   } catch (err) {
     limpar(outlet);
@@ -63,13 +83,18 @@ export async function renderMeuPerfil({ outlet }) {
     latitude: perfil.latitude ?? null,
     longitude: perfil.longitude ?? null,
     foto_id: perfil.foto_id || null,
+    chave_pix: recebimento?.chave_pix || '',
+    formas_aceitas: [...(recebimento?.formas_aceitas || METODOS_PADRAO.map((m) => m.id))],
   };
+  const metodosDisponiveis = recebimento?.metodos_disponiveis?.length
+    ? recebimento.metodos_disponiveis
+    : METODOS_PADRAO;
 
   // Header com avatar grande + nome + nota
   outlet.appendChild(renderHeader(estadoInicial, perfil));
 
   // Form
-  outlet.appendChild(renderForm(estadoInicial));
+  outlet.appendChild(renderForm(estadoInicial, metodosDisponiveis));
 }
 
 function renderHeader(estado, perfil) {
@@ -86,7 +111,7 @@ function renderHeader(estado, perfil) {
   return wrap;
 }
 
-function renderForm(estadoInicial) {
+function renderForm(estadoInicial, metodosDisponiveis) {
   // Cópia mutável que vai sendo "rebatizada" como novo inicial após cada save
   // bem-sucedido (assim o próximo submit só envia o que mudar de novo).
   let estado = { ...estadoInicial };
@@ -190,6 +215,52 @@ function renderForm(estadoInicial) {
   linhaCoords.appendChild(lngField.node);
   form.appendChild(linhaCoords);
 
+  // ---------- Recebimento de pagamentos ----------
+  form.appendChild(el('h2', { className: 'form-secao-titulo', text: 'Como você recebe' }));
+  form.appendChild(el('p', {
+    className: 'form-help',
+    text: 'O cliente paga direto para você. Marque as formas que aceita — elas aparecem para ele na hora de pagar um pedido confirmado.',
+  }));
+
+  const formasWrap = el('div', { className: 'formas-aceitas', attrs: { role: 'group', 'aria-label': 'Formas de pagamento aceitas' } });
+  const formasChecks = [];
+  for (const metodo of metodosDisponiveis) {
+    const id = `mp-forma-${metodo.id}`;
+    const input = el('input', { attrs: { type: 'checkbox', id, value: metodo.id } });
+    input.checked = estado.formas_aceitas.includes(metodo.id);
+    const label = el('label', { className: 'forma-aceita', attrs: { for: id } });
+    label.appendChild(input);
+    const textos = el('span', { className: 'forma-aceita-textos' });
+    textos.appendChild(el('span', { className: 'forma-aceita-nome', text: metodo.rotulo }));
+    textos.appendChild(el('span', { className: 'form-help', text: DICA_METODO[metodo.id] || '' }));
+    label.appendChild(textos);
+    formasChecks.push(input);
+    formasWrap.appendChild(label);
+  }
+  form.appendChild(formasWrap);
+
+  const pixField = campoTexto({
+    id: 'mp-chave-pix', label: 'Chave PIX', type: 'text', value: estado.chave_pix,
+    extraAttrs: { maxlength: CHAVE_PIX_MAX, placeholder: 'CPF, e-mail, celular ou chave aleatória', autocomplete: 'off' },
+  });
+  pixField.node.appendChild(el('span', {
+    className: 'form-help',
+    text: 'Não aparece no seu perfil público: só é mostrada ao cliente depois que você confirma um pedido dele.',
+  }));
+  // Aviso não bloqueante: aceitar PIX sem chave funciona, mas o cliente vai ter que pedir pelo chat.
+  const pixAviso = el('span', { className: 'form-help form-aviso' });
+  pixField.node.appendChild(pixAviso);
+  function atualizarAvisoPix() {
+    const aceitaPix = formasChecks.some((c) => c.value === 'pix' && c.checked);
+    pixAviso.textContent = aceitaPix && !pixField.input.value.trim()
+      ? 'Você aceita PIX mas ainda não informou a chave — o cliente terá que pedir pelo chat.'
+      : '';
+  }
+  pixField.input.addEventListener('input', atualizarAvisoPix);
+  formasChecks.forEach((c) => c.addEventListener('change', atualizarAvisoPix));
+  atualizarAvisoPix();
+  form.appendChild(pixField.node);
+
   // Footer com botões
   const footer = el('div', { className: 'form-acoes' });
   const submitBtn = el('button', {
@@ -220,6 +291,8 @@ function renderForm(estadoInicial) {
       cep: cepField.input.value.trim(),
       latitude: parseNumOuNull(latField.input.value),
       longitude: parseNumOuNull(lngField.input.value),
+      chave_pix: pixField.input.value.trim(),
+      formas_aceitas: formasChecks.filter((c) => c.checked).map((c) => c.value),
     };
 
     // Validações
@@ -241,6 +314,10 @@ function renderForm(estadoInicial) {
     }
     if (novo.longitude != null && (novo.longitude < -180 || novo.longitude > 180)) {
       erroSlot.appendChild(bannerErro('Longitude deve estar entre -180 e 180.'));
+      return;
+    }
+    if (novo.formas_aceitas.length === 0) {
+      erroSlot.appendChild(bannerErro('Marque ao menos uma forma de pagamento que você aceita.'));
       return;
     }
     if (novo.descricao.length > DESC_MAX) {
@@ -271,6 +348,8 @@ function renderForm(estadoInicial) {
     if (novo.cep !== (estado.cep || '')) patch.cep = novo.cep || null;
     if (novo.latitude !== estado.latitude) patch.latitude = novo.latitude;
     if (novo.longitude !== estado.longitude) patch.longitude = novo.longitude;
+    if (novo.chave_pix !== estado.chave_pix) patch.chave_pix = novo.chave_pix || null;
+    if (novo.formas_aceitas.join() !== estado.formas_aceitas.join()) patch.formas_aceitas = novo.formas_aceitas;
     if (fotoPayload) {
       patch.foto_base64 = fotoPayload.foto_base64;
       patch.foto_mime = fotoPayload.foto_mime;
@@ -309,6 +388,8 @@ function renderForm(estadoInicial) {
         latitude: perfilAt.latitude ?? novo.latitude,
         longitude: perfilAt.longitude ?? novo.longitude,
         foto_id: perfilAt.foto_id ?? estado.foto_id,
+        chave_pix: atualizado?.recebimento?.chave_pix ?? novo.chave_pix,
+        formas_aceitas: atualizado?.recebimento?.formas_aceitas ?? novo.formas_aceitas,
       };
 
       toast('Perfil atualizado', { tipo: 'success' });

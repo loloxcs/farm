@@ -2,8 +2,10 @@
 #
 # reset.sh — Roda o projeto DO ZERO, RESETANDO o banco de dados.
 #
-# ATENÇÃO: isto APAGA todos os dados atuais (database.sqlite) e recria
-# o banco com schema + seeds. Use quando algo quebrar ou quiser começar limpo.
+# ATENÇÃO: isto APAGA todos os dados do sistema no MongoDB (usuários, produtos,
+# pedidos, conversas...) e recria as coleções vazias, só com os catálogos.
+# O banco fica no Atlas (online): o reset vale para TODO MUNDO que usa a mesma
+# MONGO_URI, não só para este computador.
 #
 # Depois do reset, inicia backend + frontend igual ao ./run.sh.
 #
@@ -26,7 +28,8 @@ command -v npm  >/dev/null 2>&1 || { echo "ERRO: npm não encontrado.";  exit 1;
 
 # --- confirmação (o reset apaga dados) ---
 echo ""
-echo "!!  ATENÇÃO: isto vai APAGAR o banco atual e recriá-lo do zero."
+echo "!!  ATENÇÃO: isto vai APAGAR todos os dados do MongoDB (banco online, compartilhado"
+echo "    por todos que usam a mesma MONGO_URI) e recriá-lo do zero."
 read -r -p "    Tem certeza? Digite 'sim' para continuar: " CONFIRM
 if [ "$CONFIRM" != "sim" ]; then
   echo "==> Cancelado. Nenhuma alteração feita."
@@ -42,14 +45,18 @@ fi
 
 # --- dependências do backend (instala só se faltar) ---
 cd "$BACKEND_DIR"
-if [ ! -d node_modules ]; then
+if [ ! -d node_modules ] || [ ! -d node_modules/mongodb ]; then
   echo "==> Instalando dependências do backend (npm install)..."
   npm install
 fi
 
 # --- RESET do banco (sempre) ---
-echo "==> Resetando banco (npm run db:reset)..."
-npm run db:reset
+echo "==> Resetando o MongoDB (npm run db:reset)..."
+if ! npm run --silent db:reset -- --confirmar; then
+  echo ""
+  echo "ERRO: não foi possível resetar o MongoDB — veja a explicação acima."
+  exit 1
+fi
 
 # --- escolhe servidor estático para o frontend ---
 if command -v python3 >/dev/null 2>&1; then

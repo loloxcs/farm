@@ -27,6 +27,7 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
 
@@ -1466,7 +1467,7 @@ body.modal-aberto {
 .pedidos-tabela-cabecalho,
 .pedido-linha {
   display: grid;
-  grid-template-columns: 110px 1fr 120px 110px;
+  grid-template-columns: 110px 1fr 110px 190px 120px;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-4);
@@ -1954,6 +1955,332 @@ a.pedido-parte-valor { color: var(--color-primary); }
 }
 
 /* =========================================================
+   Pagamento — situação, etapas e formas (cliente e agricultor)
+   ========================================================= */
+
+/* Badge de pagamento: reaproveita .status-badge */
+.pag-badge { white-space: nowrap; }
+.status-badge.pag-a-pagar,
+.status-badge.pag-aguardando_confirmacao,
+.status-badge.pag-pagar_na_entrega {
+  background: #fcefdc;
+  border-color: #f0c98c;
+  color: #8a5b1e;
+}
+.status-badge.pag-aprovado {
+  background: var(--color-primary-light);
+  border-color: #b6cfa6;
+  color: var(--color-primary);
+}
+.status-badge.pag-recusado {
+  background: #f1ddde;
+  border-color: #d9b5b6;
+  color: var(--color-danger);
+}
+
+/* Linha do tempo do pedido */
+.etapas {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+.pagamento-page > .etapas { margin-top: 0; }
+.etapa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+/* traço ligando uma etapa à anterior */
+.etapa + .etapa::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: calc(50% + 16px);
+  width: calc(100% - 32px + var(--space-2));
+  height: 2px;
+  background: var(--color-border);
+}
+.etapa-ok + .etapa-ok::before,
+.etapa-ok + .etapa-atual::before,
+.etapa-ok + .etapa-alerta::before { background: var(--color-primary); }
+.etapa-marca {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.etapa-ok { color: var(--color-text); }
+.etapa-ok .etapa-marca {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+}
+.etapa-atual { color: var(--color-text); font-weight: 600; }
+.etapa-atual .etapa-marca {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(74, 124, 58, 0.15);
+}
+.etapa-alerta { color: var(--color-danger); font-weight: 600; }
+.etapa-alerta .etapa-marca {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* Resumo do combinado (topo da tela de pagamento) */
+.pagamento-resumo-linhas {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Situação atual */
+.pagamento-situacao {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.pagamento-situacao.is-ok     { border-left-color: var(--color-primary); }
+.pagamento-situacao.is-espera { border-left-color: var(--color-accent); }
+.pagamento-situacao.is-alerta { border-left-color: var(--color-danger); }
+.pagamento-situacao-cab {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.pagamento-situacao-icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.is-ok .pagamento-situacao-icone     { background: var(--color-primary-light); color: var(--color-primary); font-size: 1.25rem; }
+.is-espera .pagamento-situacao-icone { background: #fcefdc; color: #8a5b1e; }
+.is-alerta .pagamento-situacao-icone { background: #fbe9e9; color: var(--color-danger); font-size: 1.25rem; }
+.pagamento-situacao-titulo { margin: 0 0 var(--space-1); font-size: 1.125rem; }
+.pagamento-situacao-texto { margin: 0; color: var(--color-text-muted); }
+.pagamento-situacao-acoes { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pagamento-trocar { align-self: flex-start; }
+
+/* Escolha da forma */
+.pagamento-metodos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.pagamento-metodo { align-items: flex-start; }
+.pagamento-metodo input[type="radio"] { margin-top: 3px; }
+.pagamento-metodo-textos {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pagamento-metodo-nome { font-weight: 600; }
+.pagamento-metodo-tag {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+.pagamento-painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.pagamento-painel:empty { display: none; }
+.pagamento-link-chat { align-self: flex-start; }
+.pagamento-pix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.pagamento-pix .banner { margin-bottom: 0; }
+.pagamento-pix-caixa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary-light);
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+.pagamento-pix-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pagamento-pix-chave {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pagamento-passos {
+  margin: 0;
+  padding-left: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.pagamento-seguranca { grid-column: 1 / -1; }
+
+/* Bloco "Pagamento" no detalhe do pedido */
+.pedido-pagamento-frase { margin: 0 0 var(--space-4); }
+.pagamento-dados { grid-template-columns: repeat(3, 1fr); }
+.pedido-pagamento-bloco .pedido-acoes { margin-top: var(--space-4); }
+.pedido-pagamento-bloco .pedido-detalhe-erro-acoes { margin-top: var(--space-4); }
+
+.pedido-parte > .status-badge { align-self: flex-start; }
+.pedido-linha-pagamento { justify-self: start; }
+/* slots de erro vazios não ocupam o espaçamento do flex */
+.pagamento-form > div:empty { display: none; }
+
+/* =========================================================
+   Chat — cartões automáticos (confirmações de pedido/pagamento)
+   ========================================================= */
+.bolha-sistema-wrap { justify-content: center; }
+.bolha-sistema {
+  width: min(100%, 460px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.bolha-sistema.is-info   { border-left-color: #2b5587; }
+.bolha-sistema.is-ok     { border-left-color: var(--color-primary); }
+.bolha-sistema.is-espera { border-left-color: var(--color-accent); }
+.bolha-sistema.is-alerta { border-left-color: var(--color-danger); }
+.bolha-sistema-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+}
+.bolha-sistema-icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.is-info .bolha-sistema-icone   { background: #dee9f7; color: #2b5587; }
+.is-ok .bolha-sistema-icone     { background: var(--color-primary-light); color: var(--color-primary); }
+.is-espera .bolha-sistema-icone { background: #fcefdc; color: #8a5b1e; }
+.is-alerta .bolha-sistema-icone { background: #fbe9e9; color: var(--color-danger); }
+.bolha-sistema-titulo { font-size: 0.95rem; }
+.bolha-sistema-linha { margin: 0; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.bolha-sistema-erro:empty { display: none; }
+.bolha-sistema-erro .banner { margin: var(--space-2) 0 0; }
+.bolha-sistema-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.bolha-sistema-acoes .btn { padding: var(--space-1) var(--space-3); font-size: 0.875rem; }
+.bolha-sistema-link { margin-left: auto; }
+.bolha-sistema .bolha-hora { color: var(--color-text-muted); }
+
+/* =========================================================
+   Formulários — recebimento (perfil) e entrega/retirada (modal)
+   ========================================================= */
+.form-rotulo {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.form-secao-titulo { margin-top: var(--space-4) !important; }
+.form-aviso { color: #8a5b1e; }
+.form-aviso:empty { display: none; }
+.formas-aceitas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.forma-aceita {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.forma-aceita:hover { border-color: var(--color-primary); }
+.forma-aceita:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.forma-aceita input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--color-primary);
+}
+.forma-aceita-textos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.forma-aceita-nome { font-weight: 600; font-size: 0.95rem; }
+.profile-pagamento {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* =========================================================
    Responsive
    ========================================================= */
 @media (max-width: 700px) {
@@ -2031,9 +2358,10 @@ a.pedido-parte-valor { color: var(--color-primary); }
     grid-template-areas:
       "data    status"
       "outro   outro"
-      "total   total";
+      "total   pagamento";
     row-gap: var(--space-1);
   }
+  .pedido-linha-pagamento { grid-area: pagamento; justify-self: end; }
   .pedidos-tabela-cabecalho { display: none; }
   .pedido-linha-data    { grid-area: data; }
   .pedido-linha-outro   { grid-area: outro; font-weight: 600; }
@@ -2066,6 +2394,16 @@ a.pedido-parte-valor { color: var(--color-primary); }
   .pagamento-campos,
   .pagamento-cartao-linha { grid-template-columns: 1fr; }
   .pagamento-form > .btn { width: 100%; }
+  .pagamento-metodos,
+  .formas-aceitas,
+  .pagamento-dados { grid-template-columns: 1fr; }
+  .pagamento-situacao { padding: var(--space-4); }
+  .pagamento-situacao-acoes .btn,
+  .pagamento-trocar,
+  .pagamento-link-chat { width: 100%; }
+  .pagamento-pix-caixa { flex-direction: column; align-items: stretch; }
+  .etapa { font-size: 0.7rem; }
+  .bolha-sistema-link { margin-left: 0; }
 
   .stars-input-star { font-size: 36px; }
 }

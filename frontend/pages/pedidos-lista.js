@@ -17,6 +17,7 @@ import {
 } from '../ui.js';
 import { listarPedidos } from '../api.js';
 import { getUser } from '../auth.js';
+import { renderBadgePagamento } from '../pagamento-ui.js';
 
 const LIMIT = 20;
 
@@ -133,6 +134,7 @@ function renderLista(area, resp, page, statusFiltro, user) {
     text: user.role === 'cliente' ? 'Agricultor' : 'Cliente',
   }));
   cab.appendChild(el('span', { text: 'Total' }));
+  cab.appendChild(el('span', { text: 'Pagamento' }));
   cab.appendChild(el('span', { text: 'Status' }));
   tabela.appendChild(cab);
 
@@ -190,7 +192,12 @@ function renderLinhaPedido(pedido, user) {
     text: formatarMoeda(pedido.total),
   }));
 
-  // Coluna 4: status badge
+  // Coluna 4: situação do pagamento (o backend embute { status, metodo } no pedido)
+  const pag = renderBadgePagamento(pedido.pagamento?.status, pedido);
+  pag.classList.add('pedido-linha-pagamento');
+  linha.appendChild(pag);
+
+  // Coluna 5: status badge
   linha.appendChild(renderStatusBadge(pedido.status));
 
   return linha;

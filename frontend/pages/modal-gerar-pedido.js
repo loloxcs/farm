@@ -22,6 +22,7 @@ import { el, limpar, bannerErro, formatarMoeda } from '../ui.js';
 import { listarFormasPagamento, criarPedido } from '../api.js';
 
 const OBS_MAX = 500;
+const LOCAL_MAX = 200;
 const SNAPSHOT_ITENS_VISIVEIS = 5; // mesmo limite da bolha do chat
 
 // Cache em memória de formas de pagamento — populado na primeira abertura
@@ -68,7 +69,7 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
   // ---------- Forma de pagamento ----------
   const fpWrap = el('div', { className: 'form-field' });
   fpWrap.appendChild(el('label', {
-    text: 'Forma de pagamento',
+    text: 'Forma de pagamento combinada',
     attrs: { for: 'mgp-forma-pagamento' },
   }));
   const fpSelect = el('select', {
@@ -77,14 +78,47 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
   fpSelect.appendChild(el('option', { text: 'Carregando...', attrs: { value: '' } }));
   fpSelect.disabled = true;
   fpWrap.appendChild(fpSelect);
+  fpWrap.appendChild(el('span', {
+    className: 'form-help',
+    text: 'É a forma sugerida ao cliente na hora de pagar. Ele também pode escolher outra que você aceite (veja “Meu perfil”).',
+  }));
   form.appendChild(fpWrap);
 
-  // ---------- Data de retirada (opcional) ----------
+  // ---------- Entrega ou retirada ----------
+  // O que for escolhido aqui aparece para o cliente no pedido, na tela de
+  // pagamento e nas confirmações automáticas do chat.
+  let tipoEntrega = 'retirada';
+  const tipoWrap = el('div', { className: 'form-field' });
+  tipoWrap.appendChild(el('span', { className: 'form-rotulo', text: 'Como o cliente recebe o pedido?' }));
+  const tipoGrupo = el('div', {
+    className: 'radio-group',
+    attrs: { role: 'radiogroup', 'aria-label': 'Como o cliente recebe o pedido' },
+  });
+  const tipoOpcoes = [];
+  for (const [valor, rotulo] of [['retirada', 'Cliente retira'], ['entrega', 'Eu entrego']]) {
+    const input = el('input', {
+      attrs: { type: 'radio', name: 'mgp-tipo-entrega', value: valor, id: `mgp-tipo-${valor}` },
+    });
+    input.checked = valor === tipoEntrega;
+    const label = el('label', {
+      className: 'radio-option',
+      attrs: { for: `mgp-tipo-${valor}` },
+      children: [input, el('span', { text: rotulo })],
+    });
+    input.addEventListener('change', () => {
+      tipoEntrega = valor;
+      atualizarTipoEntrega();
+    });
+    tipoOpcoes.push({ valor, label });
+    tipoGrupo.appendChild(label);
+  }
+  tipoWrap.appendChild(tipoGrupo);
+  form.appendChild(tipoWrap);
+
+  // ---------- Data combinada (opcional) ----------
   const dataWrap = el('div', { className: 'form-field' });
-  dataWrap.appendChild(el('label', {
-    text: 'Data de retirada (opcional)',
-    attrs: { for: 'mgp-data-retirada' },
-  }));
+  const dataLabel = el('label', { attrs: { for: 'mgp-data-retirada' } });
+  dataWrap.appendChild(dataLabel);
   const dataInput = el('input', {
     attrs: { id: 'mgp-data-retirada', type: 'datetime-local' },
   });
@@ -94,6 +128,27 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
     text: 'Deixe em branco se ainda não foi combinada.',
   }));
   form.appendChild(dataWrap);
+
+  // ---------- Endereço de entrega / local de retirada (opcional) ----------
+  const localWrap = el('div', { className: 'form-field' });
+  const localLabel = el('label', { attrs: { for: 'mgp-local' } });
+  localWrap.appendChild(localLabel);
+  const localInput = el('input', {
+    attrs: { id: 'mgp-local', type: 'text', maxlength: LOCAL_MAX },
+  });
+  localWrap.appendChild(localInput);
+  form.appendChild(localWrap);
+
+  function atualizarTipoEntrega() {
+    const entrega = tipoEntrega === 'entrega';
+    for (const o of tipoOpcoes) o.label.classList.toggle('is-selected', o.valor === tipoEntrega);
+    dataLabel.textContent = entrega ? 'Data da entrega (opcional)' : 'Data da retirada (opcional)';
+    localLabel.textContent = entrega ? 'Endereço de entrega (opcional)' : 'Local de retirada (opcional)';
+    localInput.placeholder = entrega
+      ? 'Ex.: Rua das Flores, 120 — Centro'
+      : 'Ex.: Sítio Boa Vista, km 4 — ou banca na feira de sábado';
+  }
+  atualizarTipoEntrega();
 
   // ---------- Observações ----------
   const obsWrap = el('div', { className: 'form-field' });
@@ -195,15 +250,19 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
 
     // Data: datetime-local devolve "2026-05-08T09:00" (sem timezone). Converter
     // pra ISO via Date (interpretado no fuso local) — o backend só guarda a string.
+    // O campo continua se chamando `data_retirada`, mas vale para entrega também.
     let data_retirada = null;
     if (dataInput.value) {
       const d = new Date(dataInput.value);
       if (Number.isNaN(d.getTime())) {
-        erroSlot.appendChild(bannerErro('Data de retirada inválida.'));
+        erroSlot.appendChild(bannerErro(
+          tipoEntrega === 'entrega' ? 'Data da entrega inválida.' : 'Data da retirada inválida.'
+        ));
         return;
       }
       data_retirada = d.toISOString();
     }
+    const local_entrega = localInput.value.trim() || null;
 
     const observacoes = obsTextarea.value.trim() || null;
     if (observacoes && observacoes.length > OBS_MAX) {
@@ -218,7 +277,9 @@ export function abrirModalGerarPedido({ mensagemSnapshotId, snapshotJson, onCria
       const pedido = await criarPedido({
         mensagem_snapshot_id: mensagemSnapshotId,
         forma_pagamento_id,
+        tipo_entrega: tipoEntrega,
         data_retirada,
+        local_entrega,
         observacoes,
       });
       fechar();

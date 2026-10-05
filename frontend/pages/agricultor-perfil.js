@@ -88,6 +88,14 @@ function renderHeader(agricultor) {
 
   info.appendChild(renderEstrelas(perfil.media_avaliacoes, perfil.total_avaliacoes));
 
+  // Formas de pagamento aceitas (a chave PIX em si só aparece no pagamento de um pedido confirmado)
+  if (Array.isArray(perfil.formas_aceitas) && perfil.formas_aceitas.length > 0) {
+    info.appendChild(el('p', {
+      className: 'profile-pagamento',
+      text: `Aceita: ${perfil.formas_aceitas.map((f) => f.rotulo).join(' · ')}`,
+    }));
+  }
+
   // Actions — Fase B: ativadas conforme role
   const actions = el('div', { className: 'profile-actions' });
   const logado = isAuthenticated();
