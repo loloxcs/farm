@@ -13,6 +13,7 @@ import { renderCarrinho } from './pages/carrinho.js';
 import { renderConversasLista } from './pages/conversas-lista.js';
 import { renderConversa, renderConversaCom } from './pages/conversa.js';
 import { renderMeuPerfil } from './pages/meu-perfil.js';
+import { renderDashboard } from './pages/dashboard.js';
 import { renderMeusProdutos } from './pages/meus-produtos.js';
 import { renderPedidosLista } from './pages/pedidos-lista.js';
 import { renderPedidoDetalhe } from './pages/pedido-detalhe.js';
@@ -48,6 +49,7 @@ function renderHeader() {
     if (role === 'cliente') {
       nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
     } else if (role === 'agricultor') {
+      nav.appendChild(el('a', { text: 'Dashboard', attrs: { href: '#/dashboard' } }));
       nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
       nav.appendChild(el('a', { text: 'Meus produtos', attrs: { href: '#/meus-produtos' } }));
     }
@@ -143,6 +145,8 @@ router.register('#/conversas/:id',
 // Fase C — área do agricultor
 router.register('#/meu-perfil',
   exigirRole('agricultor', renderMeuPerfil));
+router.register('#/dashboard',
+  exigirRole('agricultor', renderDashboard));
 router.register('#/meus-produtos',
   exigirRole('agricultor', renderMeusProdutos));
 
