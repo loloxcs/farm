@@ -12,6 +12,7 @@ const { initializeMongo, nomeDoBanco, uriSemSenha, explicarErroMongo } = require
 
 const authRoutes = require('./routes/mongo-auth');
 const agricultoresRoutes = require('./routes/mongo-agricultores');
+const dashboardRoutes = require('./routes/mongo-dashboard');
 const catalogosRoutes = require('./routes/mongo-catalogos');
 const carrinhoRoutes = require('./routes/mongo-carrinho');
 const conversasRoutes = require('./routes/mongo-conversas');
@@ -47,6 +48,7 @@ app.use('/api/produtos',              produtos);
 app.use('/api/imagens',               imagens);
 app.use('/api/agricultores/:id/produtos',    produtosPorAgr);
 app.use('/api/agricultores/:id/avaliacoes',  avaliacoesPorAgr);
+app.use('/api/agricultores/me/dashboard',  dashboardRoutes);
 app.use('/api/agricultores',          agricultoresRoutes);
 
 app.use('/api/carrinho',              carrinhoRoutes);
