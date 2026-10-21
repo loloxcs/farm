@@ -2299,6 +2299,102 @@ a.pedido-parte-valor { color: var(--color-primary); }
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
+/* =========================================================
+   Dashboard
+   ========================================================= */
+.dashboard-container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-6);
+  width: 100%;
+}
+
+.dashboard-titulo {
+  font-size: 2rem;
+  margin-bottom: var(--space-6);
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+/* KPI Grid */
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.dashboard-kpi {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+  border-left: 4px solid var(--color-primary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dashboard-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-kpi-primary { border-left-color: #22c55e; }
+.dashboard-kpi-info { border-left-color: #3b82f6; }
+.dashboard-kpi-success { border-left-color: #10b981; }
+.dashboard-kpi-warning { border-left-color: #f59e0b; }
+
+.dashboard-kpi-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.dashboard-kpi-emoji {
+  font-size: 1.5rem;
+}
+
+.dashboard-kpi-titulo {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.dashboard-kpi-valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Charts Grid */
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--space-6);
+}
+
+.dashboard-grafico {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-grafico-titulo {
+  margin-bottom: var(--space-4);
+  color: var(--color-text);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.dashboard-canvas-wrapper {
+  position: relative;
+  height: 350px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* =========================================================
    Responsive
@@ -2426,4 +2522,17 @@ a.pedido-parte-valor { color: var(--color-primary); }
   .bolha-sistema-link { margin-left: 0; }
 
   .stars-input-star { font-size: 36px; }
+}
+/* Dashboard — responsivo mobile */
+  .dashboard-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-canvas-wrapper {
+    height: 300px;
+  }
 }
