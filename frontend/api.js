@@ -138,6 +138,13 @@ export function getMeuRecebimento() {
   return request('GET', '/agricultores/me/pagamento');
 }
 
+/**
+ * GET /agricultores/me/dashboard — Dashboard com dados de faturamento, pedidos, etc
+ */
+export function getDashboardAgricultor() {
+  return request('GET', '/agricultores/me/dashboard');
+}
+
 // =============================================================
 // 3. Produtos
 // =============================================================
