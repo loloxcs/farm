@@ -59,7 +59,7 @@ Quando aparecer `Site:  http://localhost:3000`, está no ar.
 
 Para desligar: `Ctrl+C` no terminal.
 
-> **Atalho (Mac/Linux):** depois do passo 2, `./run.sh` na raiz faz o passo 3 inteiro sozinho. (Na primeira vez: `chmod +x run.sh reset.sh`.)
+> **Atalho (Mac/Linux):** depois do passo 2, `./run.sh` na raiz liga tudo sozinho (instala dependências, prepara o banco, sobe o sistema e abre http://localhost:3000). No Mac também dá para dar **duplo clique em `Iniciar Roça.command`**. (Se der "permissão negada": `chmod +x run.sh reset.sh "Iniciar Roça.command"`.)
 
 ### Deu erro?
 
@@ -290,7 +290,7 @@ Todos rodam dentro de `backend/`.
 | `npm run test:fluxo` | **Teste automático** em banco temporário. | não |
 | `npm run db:reset -- --confirmar` | Apaga **tudo** e recria vazio. | **SIM** |
 
-Na raiz (Mac/Linux): `./run.sh` liga tudo sem apagar nada; `./reset.sh` apaga os dados (pede confirmação) e liga tudo.
+Na raiz (Mac/Linux): `./run.sh` (ou duplo clique em `Iniciar Roça.command`) liga tudo sem apagar nada e abre http://localhost:3000; `./reset.sh` apaga os dados (pede confirmação) e liga tudo.
 
 > ⚠️ O banco é online. `db:reset` e `./reset.sh` apagam os dados de **todo mundo** que usa a mesma `MONGO_URI`.
 
