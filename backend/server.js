@@ -17,6 +17,7 @@ const catalogosRoutes = require('./routes/mongo-catalogos');
 const carrinhoRoutes = require('./routes/mongo-carrinho');
 const conversasRoutes = require('./routes/mongo-conversas');
 const pedidosRoutes = require('./routes/mongo-pedidos');
+const feirasRoutes = require('./routes/mongo-feiras');
 const { produtos, produtosPorAgr, imagens } = require('./routes/mongo-produtos');
 const { avaliacoes, avaliacoesPorAgr } = require('./routes/mongo-avaliacoes');
 
@@ -55,6 +56,7 @@ app.use('/api/carrinho',              carrinhoRoutes);
 app.use('/api/conversas',             conversasRoutes);
 app.use('/api/pedidos',               pedidosRoutes);
 app.use('/api/avaliacoes',            avaliacoes);
+app.use('/api/feiras',                feirasRoutes);
 
 // ----------------- frontend -----------------
 // O site (pasta frontend/) também é servido aqui: com o backend no ar, basta

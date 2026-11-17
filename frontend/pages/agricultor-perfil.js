@@ -9,8 +9,9 @@ import {
 } from '../ui.js';
 import {
   getAgricultor, listarProdutosDoAgricultor, listarAvaliacoesDoAgricultor,
-  adicionarItemCarrinho, imagemUrl,
+  adicionarItemCarrinho, imagemUrl, listarFeiras,
 } from '../api.js';
+import { textoHorarios, enderecoFeira } from '../feira-ui.js';
 import { isAuthenticated, getUser } from '../auth.js';
 
 export async function renderAgricultorPerfil({ outlet, params }) {
@@ -19,13 +20,14 @@ export async function renderAgricultorPerfil({ outlet, params }) {
 
   const id = params.id;
 
-  let agricultor, produtosResp, avaliacoesResp;
+  let agricultor, produtosResp, avaliacoesResp, feirasResp;
   try {
     // Em paralelo: cada uma é um endpoint distinto.
-    [agricultor, produtosResp, avaliacoesResp] = await Promise.all([
+    [agricultor, produtosResp, avaliacoesResp, feirasResp] = await Promise.all([
       getAgricultor(id),
       listarProdutosDoAgricultor(id, { page: 1, limit: 50 }).catch(() => ({ items: [] })),
       listarAvaliacoesDoAgricultor(id, { page: 1, limit: 20 }).catch(() => ({ items: [], resumo: {} })),
+      listarFeiras({ agricultor_id: id }).catch(() => ({ items: [] })),
     ]);
   } catch (err) {
     limpar(outlet);
@@ -49,6 +51,25 @@ export async function renderAgricultorPerfil({ outlet, params }) {
     secProd.appendChild(grid);
   }
   outlet.appendChild(secProd);
+
+  // Feiras onde vende
+  const feiras = feirasResp?.items || [];
+  if (feiras.length) {
+    const secFeiras = el('section', { className: 'section' });
+    secFeiras.appendChild(el('h2', { className: 'section-title', text: 'Onde encontrar nas feiras' }));
+    const lista = el('div', { className: 'feiras-lista' });
+    for (const f of feiras) {
+      const meu = f.participantes.find((p) => Number(p.agricultor.id) === Number(agricultor.id));
+      const card = el('div', { className: 'card feira-card' });
+      card.appendChild(el('h3', { text: `🧺 ${f.nome}` }));
+      card.appendChild(el('p', { className: 'feira-endereco', text: enderecoFeira(f) }));
+      card.appendChild(el('p', { className: 'feira-meus-horarios', text: textoHorarios(meu?.horarios || []) }));
+      lista.appendChild(card);
+    }
+    secFeiras.appendChild(lista);
+    secFeiras.appendChild(el('a', { className: 'btn btn-ghost', text: 'Ver feiras no mapa', attrs: { href: '#/mapa' } }));
+    outlet.appendChild(secFeiras);
+  }
 
   // Avaliações
   const secAval = el('section', { className: 'section' });

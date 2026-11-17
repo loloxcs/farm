@@ -20,6 +20,7 @@ import { renderPedidoDetalhe } from './pages/pedido-detalhe.js';
 import { renderPagamento } from './pages/pagamento.js';
 import { renderMapa } from './pages/mapa.js';
 import { renderPerfilCliente } from './pages/perfil-cliente.js';
+import { renderMinhasFeiras } from './pages/minhas-feiras.js';
 
 // =============================================================
 // Header global
@@ -55,6 +56,7 @@ function renderHeader() {
       nav.appendChild(el('a', { text: 'Dashboard', attrs: { href: '#/dashboard' } }));
       nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
       nav.appendChild(el('a', { text: 'Meus produtos', attrs: { href: '#/meus-produtos' } }));
+      nav.appendChild(el('a', { text: 'Minhas feiras', attrs: { href: '#/minhas-feiras' } }));
     }
     nav.appendChild(el('a', { text: 'Conversas', attrs: { href: '#/conversas' } }));
     nav.appendChild(el('a', { text: 'Pedidos', attrs: { href: '#/pedidos' } }));
@@ -161,6 +163,8 @@ router.register('#/dashboard',
   exigirRole('agricultor', renderDashboard));
 router.register('#/meus-produtos',
   exigirRole('agricultor', renderMeusProdutos));
+router.register('#/minhas-feiras',
+  exigirRole('agricultor', renderMinhasFeiras));
 
 // Fase D — pedidos (cliente + agricultor)
 router.register('#/pedidos',

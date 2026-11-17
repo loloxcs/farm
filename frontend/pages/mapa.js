@@ -6,10 +6,13 @@
 // Origem (de onde medimos a distância), nesta ordem:
 //   1. localização do navegador, se a pessoa clicar em "Usar minha localização"
 //   2. endereço salvo do usuário logado (o backend usa direto)
-// Lista e marcadores vêm de GET /agricultores/proximos, já ordenados por distância.
+// Lista e marcadores vêm de GET /agricultores/proximos e GET /feiras, já
+// ordenados por distância. Feiras têm marcador próprio (laranja) e mostram os
+// agricultores que vendem lá com dias e horários.
 
 import { el, limpar, bannerErro, criarAvatar, renderEstrelas, loading, estadoVazio } from '../ui.js';
-import { listarAgricultoresProximos } from '../api.js';
+import { listarAgricultoresProximos, listarFeiras } from '../api.js';
+import { textoDias, enderecoFeira, listaParticipantes } from '../feira-ui.js';
 import { getUser, isAuthenticated } from '../auth.js';
 
 const LEAFLET_VERSAO = '1.9.4';
@@ -58,8 +61,8 @@ export async function renderMapa({ outlet }) {
   outlet.appendChild(el('div', {
     className: 'page-header',
     children: [
-      el('h1', { className: 'page-title', text: 'Agricultores perto de você' }),
-      el('p', { className: 'page-subtitle', text: 'Do mais perto ao mais longe, a partir do seu endereço.' }),
+      el('h1', { className: 'page-title', text: 'Agricultores e feiras perto de você' }),
+      el('p', { className: 'page-subtitle', text: 'Agricultores e feiras do mais perto ao mais longe, a partir do seu endereço.' }),
     ],
   }));
 
@@ -90,9 +93,25 @@ export async function renderMapa({ outlet }) {
 
   const layout = el('div', { className: 'mapa-layout' });
   const mapaEl = el('div', { className: 'mapa-canvas', attrs: { id: 'mapa-canvas', role: 'region', 'aria-label': 'Mapa dos agricultores' } });
+  const listaCol = el('div', { className: 'mapa-coluna' });
+  const abas = el('div', { className: 'mapa-abas', attrs: { role: 'tablist' } });
+  const abaAgr = el('button', { className: 'chip-filtro is-active', text: 'Agricultores', attrs: { type: 'button', role: 'tab' } });
+  const abaFeiras = el('button', { className: 'chip-filtro', text: 'Feiras', attrs: { type: 'button', role: 'tab' } });
+  abas.append(abaAgr, abaFeiras);
   const listaEl = el('ol', { className: 'mapa-lista' });
+  const listaFeirasEl = el('ol', { className: 'mapa-lista' });
+  listaFeirasEl.hidden = true;
+  listaCol.append(abas, listaEl, listaFeirasEl);
+  function mostrarAba(feiras) {
+    abaAgr.classList.toggle('is-active', !feiras);
+    abaFeiras.classList.toggle('is-active', feiras);
+    listaEl.hidden = feiras;
+    listaFeirasEl.hidden = !feiras;
+  }
+  abaAgr.addEventListener('click', () => mostrarAba(false));
+  abaFeiras.addEventListener('click', () => mostrarAba(true));
   layout.appendChild(mapaEl);
-  layout.appendChild(listaEl);
+  layout.appendChild(listaCol);
   outlet.appendChild(layout);
 
   // ---- estado ----
@@ -118,17 +137,23 @@ export async function renderMapa({ outlet }) {
   async function carregar() {
     limpar(avisoSlot);
     limpar(listaEl);
+    limpar(listaFeirasEl);
     listaEl.appendChild(loading('Buscando agricultores...'));
     camada.clearLayers();
     marcadores.clear();
 
+    const filtro = {
+      lat: coordsNavegador?.lat,
+      lng: coordsNavegador?.lng,
+      raio_km: raioSelect.value || undefined,
+    };
     let data;
+    let feirasResp = { items: [] };
     try {
-      data = await listarAgricultoresProximos({
-        lat: coordsNavegador?.lat,
-        lng: coordsNavegador?.lng,
-        raio_km: raioSelect.value || undefined,
-      });
+      [data, feirasResp] = await Promise.all([
+        listarAgricultoresProximos(filtro),
+        listarFeiras(filtro).catch(() => ({ items: [] })),
+      ]);
     } catch (err) {
       limpar(listaEl);
       if (err?.code === 'SEM_LOCALIZACAO') {
@@ -151,11 +176,32 @@ export async function renderMapa({ outlet }) {
       radius: 9, color: '#ffffff', weight: 3, fillColor: '#2f6fdf', fillOpacity: 1,
     }).bindTooltip('Você', { permanent: false }).addTo(camada);
 
+    // ---- feiras ----
+    const feiras = (feirasResp.items || []).filter((f) => Number.isFinite(f.latitude) && Number.isFinite(f.longitude));
+    abaFeiras.textContent = `Feiras (${feiras.length})`;
+    abaAgr.textContent = `Agricultores (${items.length})`;
+    if (!feiras.length) {
+      listaFeirasEl.appendChild(estadoVazio(raioSelect.value
+        ? 'Nenhuma feira nessa distância.'
+        : 'Nenhuma feira cadastrada ainda.'));
+    }
+    feiras.forEach((f) => {
+      const marker = L.marker([f.latitude, f.longitude], { title: f.nome, icon: iconeFeira(L), zIndexOffset: -100 })
+        .bindPopup(popupFeira(f), { maxWidth: 320 })
+        .addTo(camada);
+      listaFeirasEl.appendChild(itemFeira(f, () => {
+        mapa.setView([f.latitude, f.longitude], Math.max(mapa.getZoom(), 14));
+        marker.openPopup();
+      }));
+    });
+
     if (!items.length) {
       listaEl.appendChild(estadoVazio(raioSelect.value
         ? 'Nenhum agricultor nessa distância. Tente aumentar o raio.'
         : 'Nenhum agricultor com localização cadastrada ainda.'));
-      mapa.setView([origem.latitude, origem.longitude], 12);
+      const pts = [[origem.latitude, origem.longitude], ...feiras.slice(0, 5).map((f) => [f.latitude, f.longitude])];
+      if (pts.length > 1) mapa.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 14 });
+      else mapa.setView([origem.latitude, origem.longitude], 12);
       return;
     }
 
@@ -171,7 +217,11 @@ export async function renderMapa({ outlet }) {
     });
 
     // Enquadra a origem + os 5 mais próximos (não o país inteiro)
-    const pontos = [[origem.latitude, origem.longitude], ...items.slice(0, 5).map((a) => [a.latitude, a.longitude])];
+    const pontos = [
+      [origem.latitude, origem.longitude],
+      ...items.slice(0, 5).map((a) => [a.latitude, a.longitude]),
+      ...feiras.slice(0, 3).map((f) => [f.latitude, f.longitude]),
+    ];
     mapa.fitBounds(L.latLngBounds(pontos), { padding: [40, 40], maxZoom: 14 });
 
     if (semLocal > 0) {
@@ -259,4 +309,50 @@ function popupAgricultor(a, posicao) {
   if (local) box.appendChild(el('div', { className: 'mapa-popup-local', text: local }));
   box.appendChild(el('a', { text: 'Ver produtos', attrs: { href: `#/agricultores/${a.id}` } }));
   return box;
+}
+
+// ---------------------------------------------------------------
+// Feiras
+// ---------------------------------------------------------------
+let iconeFeiraCache = null;
+function iconeFeira(L) {
+  if (!iconeFeiraCache) {
+    iconeFeiraCache = L.divIcon({
+      className: 'mapa-icone-feira',
+      html: '<span aria-hidden="true">🧺</span>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -16],
+    });
+  }
+  return iconeFeiraCache;
+}
+
+function popupFeira(f) {
+  const box = el('div', { className: 'mapa-popup mapa-popup-feira' });
+  box.appendChild(el('strong', { text: `🧺 ${f.nome}` }));
+  if (f.distancia_km != null) box.appendChild(el('div', { text: `${formatarDistancia(f.distancia_km)} de você` }));
+  const end = enderecoFeira(f);
+  if (end) box.appendChild(el('div', { className: 'mapa-popup-local', text: end }));
+  box.appendChild(el('div', { className: 'mapa-popup-sub', text: 'Quem vende aqui:' }));
+  box.appendChild(listaParticipantes(f));
+  return box;
+}
+
+function itemFeira(f, aoClicar) {
+  const li = el('li', { className: 'mapa-item mapa-item-feira' });
+  const botao = el('button', { className: 'mapa-item-btn', attrs: { type: 'button' }, on: { click: aoClicar } });
+  botao.appendChild(el('span', { className: 'mapa-item-feira-icone', text: '🧺' }));
+  const info = el('span', { className: 'mapa-item-info' });
+  info.appendChild(el('span', { className: 'mapa-item-nome', text: f.nome }));
+  info.appendChild(el('span', { className: 'mapa-item-local', text: enderecoFeira(f) || 'Endereço não informado' }));
+  info.appendChild(el('span', {
+    className: 'mapa-item-local',
+    text: `${textoDias(f.dias)} · ${f.participantes.length} agricultor(es)`,
+  }));
+  botao.appendChild(info);
+  if (f.distancia_km != null) botao.appendChild(el('span', { className: 'mapa-item-dist', text: formatarDistancia(f.distancia_km) }));
+  li.appendChild(botao);
+  li.appendChild(listaParticipantes(f));
+  return li;
 }

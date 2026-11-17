@@ -14,6 +14,7 @@
  *   pedidos           pedidos gerados a partir do carrinho (itens embutidos)
  *   pagamentos        um pagamento por pedido
  *   avaliacoes        avaliação do cliente sobre o agricultor
+ *   feiras            feiras livres (endereço) + agricultores que vendem lá e seus dias/horários
  *   contadores        sequências dos ids numéricos (1, 2, 3...) de cada coleção
  *
  * Variáveis (backend/.env):
@@ -28,7 +29,7 @@ let connection;
 const COLECOES = [
   'usuarios', 'produtos', 'imagens', 'categorias', 'formas_pagamento',
   'carrinhos', 'conversas', 'mensagens', 'pedidos', 'pagamentos', 'avaliacoes',
-  'contadores',
+  'feiras', 'contadores',
 ];
 
 // [coleção, chaves, opções]
@@ -47,6 +48,8 @@ const INDICES = [
   ['pagamentos', { pedido_id: 1 }, { unique: true }],
   ['categorias', { nome: 1 }, { unique: true }],
   ['formas_pagamento', { nome: 1 }, { unique: true }],
+  ['feiras', { deleted_at: 1 }, {}],
+  ['feiras', { 'participantes.agricultor_id': 1 }, {}],
 ];
 
 const CATEGORIAS = [

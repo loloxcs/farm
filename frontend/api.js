@@ -371,3 +371,42 @@ export function atualizarMeusDados(patch) {
 export function listarMinhasAvaliacoes() {
   return request('GET', '/avaliacoes/minhas');
 }
+
+// =============================================================
+// 10. Feiras
+// =============================================================
+
+/** GET /feiras — público. query: { lat, lng, raio_km, q, cidade, estado, agricultor_id } */
+export function listarFeiras(query = {}) {
+  return request('GET', '/feiras', undefined, query);
+}
+
+/** GET /feiras/minhas — feiras do agricultor logado (com `meus_horarios`). */
+export function listarMinhasFeiras() {
+  return request('GET', '/feiras/minhas');
+}
+
+/**
+ * POST /feiras — cadastra uma feira (ou entra na existente com o mesmo nome/cidade).
+ * payload: { nome, cep, logradouro, numero, complemento, bairro, cidade, estado,
+ *            latitude?, longitude?, horarios: [{ dia, inicio, fim }] }
+ * Resposta traz `agrupada: true` quando a feira já existia.
+ */
+export function criarFeira(payload) {
+  return request('POST', '/feiras', payload);
+}
+
+/** PUT /feiras/:id/participacao — entra na feira ou troca os próprios horários. */
+export function salvarHorariosFeira(id, horarios) {
+  return request('PUT', `/feiras/${id}/participacao`, { horarios });
+}
+
+/** DELETE /feiras/:id/participacao — sai da feira. */
+export function sairDaFeira(id) {
+  return request('DELETE', `/feiras/${id}/participacao`);
+}
+
+/** PATCH /feiras/:id — corrige nome/endereço (só quem vende lá). */
+export function editarFeira(id, patch) {
+  return request('PATCH', `/feiras/${id}`, patch);
+}

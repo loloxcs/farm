@@ -881,3 +881,22 @@ Avaliações feitas pelo cliente logado: `{ items: [{ id, agricultor: { id, nome
 ### Privacidade
 Quando um usuário aparece para outro (`GET /api/conversas` → `outro`, `GET /api/agricultores/:id/avaliacoes` → `cliente`)
 só saem `id`, `nome` e `foto_id`. Endereço, telefone, email e histórico do cliente só aparecem para ele mesmo.
+
+## Feiras
+
+Uma feira é um lugar (nome + endereço + coordenadas) com uma lista de agricultores, cada um com os próprios dias e horários.
+Coleção `feiras`: `{ id, nome, cep, logradouro, numero, complemento, bairro, cidade, estado, latitude, longitude,
+participantes: [{ agricultor_id, horarios: [{ dia, inicio, fim }] }], criado_por, created_at, updated_at, deleted_at }`.
+`dia` ∈ `dom seg ter qua qui sex sab`; `inicio`/`fim` em `HH:MM`.
+
+**Agrupamento:** ao cadastrar uma feira com o mesmo nome (ignorando acentos, maiúsculas e palavras como "feira", "de", "do")
+na mesma cidade/UF, ou a menos de 500 m, o agricultor entra na feira existente. O mapa mostra um único ponto.
+
+| Método | Rota | Quem | O que faz |
+|---|---|---|---|
+| GET | `/api/feiras` | público | Lista feiras com participantes (só nome e foto) e horários. Query: `lat`, `lng`, `raio_km`, `q`, `cidade`, `estado`, `agricultor_id`. Com origem (lat/lng ou endereço do logado) ordena por `distancia_km`. |
+| GET | `/api/feiras/minhas` | agricultor | Feiras em que participa, com `meus_horarios`. |
+| POST | `/api/feiras` | agricultor | Body: `nome`, campos de endereço (`cidade` obrigatória), `latitude?`, `longitude?`, `horarios`. 201 `agrupada:false` (nova) ou 200 `agrupada:true` (entrou na existente). |
+| PUT | `/api/feiras/:id/participacao` | agricultor | Body `{ horarios }`. Entra na feira ou troca os próprios horários. |
+| DELETE | `/api/feiras/:id/participacao` | agricultor | Sai da feira. Sem participantes, a feira some (`feira_removida: true`). |
+| PATCH | `/api/feiras/:id` | agricultor participante | Corrige nome/endereço (recalcula coordenadas). |

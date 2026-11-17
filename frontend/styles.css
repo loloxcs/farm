@@ -2712,3 +2712,47 @@ a.pedido-parte-valor { color: var(--color-primary); }
 @media (max-width: 700px) {
   .perfil-resumo { grid-template-columns: 1fr; }
 }
+
+/* =========================================================
+   Feiras
+   ========================================================= */
+.feiras-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.feira-card { display: flex; flex-direction: column; gap: var(--space-2); }
+.feira-card h3 { margin: 0; }
+.feira-endereco { color: var(--color-text-muted); margin: 0; }
+.feira-meus-horarios { margin: 0; }
+.feira-acoes { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.feira-busca { margin-bottom: var(--space-4); }
+.feira-busca h3, .feira-nova h3 { margin-top: 0; }
+.feira-busca-form { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.feira-busca-form input {
+  flex: 1; min-width: 0; padding: 8px 12px; font: inherit;
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+}
+.feira-busca-resultados { display: flex; flex-direction: column; gap: var(--space-2); }
+.feira-resultado { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
+.feira-resultado-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
+.feira-horarios-form { margin-top: var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.horarios-editor { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0; }
+.horarios-titulo { font-weight: 600; }
+.horarios-linhas { display: flex; flex-direction: column; gap: var(--space-2); }
+.horarios-linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.horarios-linha select, .horarios-linha input {
+  padding: 6px 8px; font: inherit;
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface);
+}
+.feira-participantes { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.875rem; }
+.feira-participantes li { display: flex; flex-direction: column; }
+.feira-participantes .feira-horarios { color: var(--color-text-muted); }
+.feira-participantes .is-voce a { font-weight: 600; }
+.mapa-item-feira .feira-participantes { margin-left: 36px; }
+.mapa-coluna { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.mapa-abas { display: flex; gap: var(--space-2); }
+.mapa-item-feira-icone { flex: 0 0 24px; font-size: 1.1rem; text-align: center; }
+.mapa-icone-feira {
+  display: grid; place-items: center;
+  background: var(--color-accent); border: 3px solid #fff; border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); font-size: 16px;
+}
+.mapa-popup-sub { margin-top: 4px; font-weight: 600; }
+.mapa-lista[hidden] { display: none; }
