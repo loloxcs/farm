@@ -25,7 +25,28 @@ function usuarioPublico(usuario) {
     email: usuario.email,
     role: usuario.role,
     telefone: usuario.telefone,
+    endereco: enderecoDoUsuario(usuario),
   };
 }
 
-module.exports = { asyncRoute, idParam, pagina, inteiroPositivo, usuarioPublico };
+/**
+ * Endereço do usuário no mesmo formato para os dois papéis.
+ * Cliente: fica em `usuario.endereco`. Agricultor: dentro de `usuario.perfil`
+ * (onde já ficavam cidade/estado/cep/latitude/longitude).
+ */
+function enderecoDoUsuario(usuario) {
+  const fonte = (usuario?.role === 'agricultor' ? usuario.perfil : usuario?.endereco) || {};
+  return {
+    cep: fonte.cep ?? null,
+    logradouro: fonte.logradouro ?? null,
+    numero: fonte.numero ?? null,
+    complemento: fonte.complemento ?? null,
+    bairro: fonte.bairro ?? null,
+    cidade: fonte.cidade ?? null,
+    estado: fonte.estado ?? null,
+    latitude: fonte.latitude ?? null,
+    longitude: fonte.longitude ?? null,
+  };
+}
+
+module.exports = { asyncRoute, idParam, pagina, inteiroPositivo, usuarioPublico, enderecoDoUsuario };

@@ -12,7 +12,8 @@
     "db:check": "node db/check-mongo.js",
     "db:reset": "node db/reset-mongo.js",
     "db:sqlite-reset": "node db/init.js",
-    "test:fluxo": "node scripts/teste-fluxo.js"
+    "test:fluxo": "node scripts/teste-fluxo.js",
+    "db:geocodificar": "node db/geocodificar-enderecos.js"
   },
   "engines": {
     "node": ">=18.0.0"

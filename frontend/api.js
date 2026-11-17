@@ -319,3 +319,45 @@ export function criarAvaliacao({ agricultor_id, pedido_id, nota, comentario }) {
 export function listarAvaliacoesDoAgricultor(agricultorId, query = {}) {
   return request('GET', `/agricultores/${agricultorId}/avaliacoes`, undefined, query);
 }
+
+// =============================================================
+// 9. Endereços e mapa
+// =============================================================
+
+/**
+ * PATCH /auth/me/endereco — salva o endereço do usuário logado (cliente ou agricultor).
+ * payload: { cep, logradouro, numero, complemento, bairro, cidade, estado,
+ *            latitude?, longitude? }. Sem latitude/longitude, o backend calcula
+ * pelo endereço. Devolve { endereco, geocodificado }.
+ */
+export function atualizarMeuEndereco(payload) {
+  return request('PATCH', '/auth/me/endereco', payload);
+}
+
+/**
+ * GET /agricultores/proximos — agricultores do mais perto ao mais longe.
+ * Sem lat/lng, usa o endereço salvo do usuário logado.
+ * Devolve { origem, items: [{ ..., latitude, longitude, distancia_km }], total, sem_localizacao }.
+ */
+export function listarAgricultoresProximos({ lat, lng, raio_km, limit } = {}) {
+  return request('GET', '/agricultores/proximos', undefined, { lat, lng, raio_km, limit });
+}
+
+/**
+ * Consulta um CEP no ViaCEP (serviço público e gratuito, chamado direto do navegador).
+ * Devolve { logradouro, bairro, cidade, estado } ou null se o CEP não existir.
+ */
+export async function buscarCep(cep) {
+  const digitos = String(cep || '').replace(/\D/g, '');
+  if (digitos.length !== 8) return null;
+  const res = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
+  if (!res.ok) throw new Error('Não foi possível consultar o CEP agora.');
+  const data = await res.json();
+  if (data.erro) return null;
+  return {
+    logradouro: data.logradouro || '',
+    bairro: data.bairro || '',
+    cidade: data.localidade || '',
+    estado: data.uf || '',
+  };
+}

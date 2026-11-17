@@ -20,10 +20,10 @@ import {
 } from '../api.js';
 import { getUser, setUser } from '../auth.js';
 import { navigate } from '../router.js';
+import { camposEndereco, textoLocalizacao, mascaraCep } from '../campos-endereco.js';
 
 const DESC_MAX = 600;
-const CEP_RE = /^\d{5}-?\d{3}$/;
-const UF_RE = /^[A-Z]{2}$/;
+const CAMPOS_ENDERECO = ['cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado'];
 const CHAVE_PIX_MAX = 140;
 
 // Usado se o backend não devolver a lista (mantém a tela funcionando).
@@ -77,11 +77,7 @@ export async function renderMeuPerfil({ outlet }) {
     nome: me.nome || agricultor.nome || '',
     telefone: me.telefone || agricultor.telefone || '',
     descricao: perfil.descricao || '',
-    cidade: perfil.cidade || '',
-    estado: perfil.estado || '',
-    cep: formatarCep(perfil.cep || ''),
-    latitude: perfil.latitude ?? null,
-    longitude: perfil.longitude ?? null,
+    endereco: enderecoInicial(me.endereco || perfil),
     foto_id: perfil.foto_id || null,
     chave_pix: recebimento?.chave_pix || '',
     formas_aceitas: [...(recebimento?.formas_aceitas || METODOS_PADRAO.map((m) => m.id))],
@@ -165,55 +161,10 @@ function renderForm(estadoInicial, metodosDisponiveis) {
   descTextarea.addEventListener('input', atualizarContador);
   form.appendChild(descWrap);
 
-  // Cidade + UF em linha (UF tem 2 chars)
-  const linhaLocal = el('div', { className: 'form-linha-dupla' });
-  const cidadeField = campoTexto({
-    id: 'mp-cidade', label: 'Cidade', type: 'text', value: estado.cidade,
-  });
-  cidadeField.node.classList.add('form-linha-flex');
-  linhaLocal.appendChild(cidadeField.node);
-
-  const ufField = campoTexto({
-    id: 'mp-estado', label: 'UF', type: 'text',
-    value: estado.estado,
-    extraAttrs: { maxlength: 2, placeholder: 'SP', style: 'text-transform:uppercase' },
-  });
-  // Mantemos uppercase em runtime — input só permite 2 caracteres maiúsculos
-  ufField.input.addEventListener('input', () => {
-    ufField.input.value = ufField.input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-  });
-  linhaLocal.appendChild(ufField.node);
-  form.appendChild(linhaLocal);
-
-  // CEP com máscara 00000-000
-  const cepField = campoTexto({
-    id: 'mp-cep', label: 'CEP (opcional)', type: 'text',
-    value: formatarCep(estado.cep),
-    extraAttrs: { placeholder: '00000-000', maxlength: 9, inputmode: 'numeric' },
-  });
-  cepField.input.addEventListener('input', () => {
-    cepField.input.value = aplicarMascaraCep(cepField.input.value);
-  });
-  form.appendChild(cepField.node);
-
-  // Latitude + Longitude
-  const linhaCoords = el('div', { className: 'form-linha-dupla' });
-  const latField = campoTexto({
-    id: 'mp-lat', label: 'Latitude', type: 'number',
-    value: estado.latitude == null ? '' : String(estado.latitude),
-    extraAttrs: { step: '0.000001', min: '-90', max: '90', placeholder: '-22.97' },
-  });
-  latField.node.classList.add('form-linha-flex');
-  linhaCoords.appendChild(latField.node);
-
-  const lngField = campoTexto({
-    id: 'mp-lng', label: 'Longitude', type: 'number',
-    value: estado.longitude == null ? '' : String(estado.longitude),
-    extraAttrs: { step: '0.000001', min: '-180', max: '180', placeholder: '-46.99' },
-  });
-  lngField.node.classList.add('form-linha-flex');
-  linhaCoords.appendChild(lngField.node);
-  form.appendChild(linhaCoords);
+  // Endereço completo (CEP preenche o resto). Latitude/longitude são
+  // calculadas pelo backend a partir do endereço.
+  const enderecoCampos = camposEndereco({ inicial: estado.endereco, prefixo: 'mp-end' });
+  form.appendChild(enderecoCampos.node);
 
   // ---------- Recebimento de pagamentos ----------
   form.appendChild(el('h2', { className: 'form-secao-titulo', text: 'Como você recebe' }));
@@ -286,11 +237,7 @@ function renderForm(estadoInicial, metodosDisponiveis) {
       nome: nomeField.input.value.trim(),
       telefone: telField.input.value.trim(),
       descricao: descTextarea.value.trim(),
-      cidade: cidadeField.input.value.trim(),
-      estado: ufField.input.value.trim().toUpperCase(),
-      cep: cepField.input.value.trim(),
-      latitude: parseNumOuNull(latField.input.value),
-      longitude: parseNumOuNull(lngField.input.value),
+      endereco: enderecoCampos.getValores(),
       chave_pix: pixField.input.value.trim(),
       formas_aceitas: formasChecks.filter((c) => c.checked).map((c) => c.value),
     };
@@ -300,20 +247,9 @@ function renderForm(estadoInicial, metodosDisponiveis) {
       erroSlot.appendChild(bannerErro('Informe seu nome.'));
       return;
     }
-    if (novo.estado && !UF_RE.test(novo.estado)) {
-      erroSlot.appendChild(bannerErro('UF deve ter exatamente 2 letras maiúsculas (ex.: SP).'));
-      return;
-    }
-    if (novo.cep && !CEP_RE.test(novo.cep)) {
-      erroSlot.appendChild(bannerErro('CEP inválido. Use o formato 00000-000.'));
-      return;
-    }
-    if (novo.latitude != null && (novo.latitude < -90 || novo.latitude > 90)) {
-      erroSlot.appendChild(bannerErro('Latitude deve estar entre -90 e 90.'));
-      return;
-    }
-    if (novo.longitude != null && (novo.longitude < -180 || novo.longitude > 180)) {
-      erroSlot.appendChild(bannerErro('Longitude deve estar entre -180 e 180.'));
+    const erroEndereco = enderecoCampos.validar();
+    if (erroEndereco) {
+      erroSlot.appendChild(bannerErro(erroEndereco));
       return;
     }
     if (novo.formas_aceitas.length === 0) {
@@ -343,11 +279,11 @@ function renderForm(estadoInicial, metodosDisponiveis) {
     if (novo.nome !== estado.nome) patch.nome = novo.nome;
     if (novo.telefone !== estado.telefone) patch.telefone = novo.telefone || null;
     if (novo.descricao !== estado.descricao) patch.descricao = novo.descricao || null;
-    if (novo.cidade !== estado.cidade) patch.cidade = novo.cidade || null;
-    if (novo.estado !== estado.estado) patch.estado = novo.estado || null;
-    if (novo.cep !== (estado.cep || '')) patch.cep = novo.cep || null;
-    if (novo.latitude !== estado.latitude) patch.latitude = novo.latitude;
-    if (novo.longitude !== estado.longitude) patch.longitude = novo.longitude;
+    for (const campo of CAMPOS_ENDERECO) {
+      if (novo.endereco[campo] !== estado.endereco[campo]) patch[campo] = novo.endereco[campo] || null;
+    }
+    const coordsManuais = enderecoCampos.getCoordsManuais();
+    if (coordsManuais) Object.assign(patch, coordsManuais);
     if (novo.chave_pix !== estado.chave_pix) patch.chave_pix = novo.chave_pix || null;
     if (novo.formas_aceitas.join() !== estado.formas_aceitas.join()) patch.formas_aceitas = novo.formas_aceitas;
     if (fotoPayload) {
@@ -382,16 +318,16 @@ function renderForm(estadoInicial, metodosDisponiveis) {
         nome: atualizado?.nome ?? novo.nome,
         telefone: atualizado?.telefone ?? novo.telefone,
         descricao: perfilAt.descricao ?? novo.descricao,
-        cidade: perfilAt.cidade ?? novo.cidade,
-        estado: perfilAt.estado ?? novo.estado,
-        cep: perfilAt.cep ?? novo.cep,
-        latitude: perfilAt.latitude ?? novo.latitude,
-        longitude: perfilAt.longitude ?? novo.longitude,
+        endereco: atualizado?.endereco ? enderecoInicial(atualizado.endereco) : novo.endereco,
         foto_id: perfilAt.foto_id ?? estado.foto_id,
         chave_pix: atualizado?.recebimento?.chave_pix ?? novo.chave_pix,
         formas_aceitas: atualizado?.recebimento?.formas_aceitas ?? novo.formas_aceitas,
       };
 
+      enderecoCampos.limparCoordsManuais();
+      if (atualizado?.endereco) {
+        enderecoCampos.setStatusLocalizacao(textoLocalizacao(atualizado.endereco, atualizado.geocodificado));
+      }
       toast('Perfil atualizado', { tipo: 'success' });
 
       // Se a foto mudou, re-renderiza a página inteira pra atualizar avatar do header
@@ -429,21 +365,12 @@ function campoTexto({ id, label, type = 'text', value = '', required = false, au
   return { node, input };
 }
 
-function parseNumOuNull(v) {
-  if (v == null || String(v).trim() === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** Aplica máscara 00000-000 enquanto o usuário digita. */
-function aplicarMascaraCep(s) {
-  const digitos = String(s).replace(/\D/g, '').slice(0, 8);
-  if (digitos.length <= 5) return digitos;
-  return digitos.slice(0, 5) + '-' + digitos.slice(5);
-}
-
-/** Formata um CEP do backend (com ou sem hífen) pra exibição no input. */
-function formatarCep(cep) {
-  if (!cep) return '';
-  return aplicarMascaraCep(cep);
+/** Endereço vindo do backend → valores como aparecem no formulário ('' em vez de null). */
+function enderecoInicial(e = {}) {
+  const out = {};
+  for (const campo of CAMPOS_ENDERECO) out[campo] = e?.[campo] ? String(e[campo]) : '';
+  out.cep = mascaraCep(out.cep);
+  out.latitude = e?.latitude ?? null;
+  out.longitude = e?.longitude ?? null;
+  return out;
 }

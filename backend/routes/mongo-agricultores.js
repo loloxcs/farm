@@ -7,6 +7,8 @@ const { httpError } = require('../middleware/error');
 const { criarImagemSeNecessario } = require('../utils/imagens-mongo');
 const { asyncRoute, idParam } = require('../utils/mongo-helpers');
 const { METODOS, metodosAceitos, rotuloMetodo } = require('../utils/pagamentos');
+const { prepararAtualizacaoEndereco, distanciaKm, temCoordenadas } = require('../utils/endereco');
+const { usuarioAtualOpcional } = require('../middleware/auth');
 
 const CHAVE_PIX_MAX = 140;
 
@@ -23,6 +25,7 @@ function perfilPublico(usuario) {
       cidade: perfil.cidade ?? null,
       estado: perfil.estado ?? null,
       cep: perfil.cep ?? null,
+      bairro: perfil.bairro ?? null,
       latitude: perfil.latitude ?? null,
       longitude: perfil.longitude ?? null,
       foto_id: perfil.foto_id ?? null,
@@ -31,6 +34,21 @@ function perfilPublico(usuario) {
       // Público: só QUAIS formas ele aceita. A chave PIX nunca sai por aqui.
       formas_aceitas: metodosAceitos(perfil).map((id) => ({ id, rotulo: rotuloMetodo(id) })),
     },
+  };
+}
+
+/** Endereço completo — só para o próprio agricultor (o público vê bairro/cidade/UF). */
+function enderecoCompleto(perfil = {}) {
+  return {
+    cep: perfil?.cep ?? null,
+    logradouro: perfil?.logradouro ?? null,
+    numero: perfil?.numero ?? null,
+    complemento: perfil?.complemento ?? null,
+    bairro: perfil?.bairro ?? null,
+    cidade: perfil?.cidade ?? null,
+    estado: perfil?.estado ?? null,
+    latitude: perfil?.latitude ?? null,
+    longitude: perfil?.longitude ?? null,
   };
 }
 
@@ -85,6 +103,87 @@ router.get('/', asyncRoute(async (req, res) => {
   res.json({ items, page, limit, total });
 }));
 
+/**
+ * GET /agricultores/proximos — agricultores ordenados do mais perto ao mais longe.
+ * Origem: ?lat=&lng= (ex.: localização do navegador) ou, sem eles, o endereço
+ * salvo do usuário logado. Opcionais: raio_km, limit (padrão 50, máx. 200).
+ */
+router.get('/proximos', usuarioAtualOpcional, asyncRoute(async (req, res) => {
+  const db = await getMongoDb();
+  let origem = null;
+
+  if (req.query.lat !== undefined || req.query.lng !== undefined) {
+    const latitude = Number(req.query.lat);
+    const longitude = Number(req.query.lng);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      throw httpError(400, 'VALIDATION', 'lat/lng inválidos');
+    }
+    origem = { latitude, longitude, fonte: 'parametro' };
+  } else if (req.user) {
+    const eu = await db.collection('usuarios').findOne(
+      { id: req.user.id, deleted_at: null },
+      { projection: { role: 1, endereco: 1, perfil: 1 } }
+    );
+    const end = eu?.role === 'agricultor' ? eu?.perfil : eu?.endereco;
+    if (temCoordenadas(end)) origem = { latitude: end.latitude, longitude: end.longitude, fonte: 'endereco' };
+  }
+  if (!origem) {
+    throw httpError(400, 'SEM_LOCALIZACAO',
+      'Cadastre seu endereço ou permita o uso da sua localização para ver os agricultores próximos.');
+  }
+
+  let raio = null;
+  if (req.query.raio_km !== undefined && req.query.raio_km !== '') {
+    raio = Number(req.query.raio_km);
+    if (!Number.isFinite(raio) || raio <= 0) throw httpError(400, 'VALIDATION', 'raio_km deve ser positivo');
+  }
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+
+  const agricultores = await db.collection('usuarios').find(
+    { role: 'agricultor', deleted_at: null },
+    {
+      projection: {
+        _id: 0, id: 1, nome: 1, 'perfil.cidade': 1, 'perfil.estado': 1, 'perfil.bairro': 1,
+        'perfil.latitude': 1, 'perfil.longitude': 1, 'perfil.foto_id': 1,
+        'perfil.media_avaliacoes': 1, 'perfil.total_avaliacoes': 1, 'perfil.descricao': 1,
+      },
+    }
+  ).toArray();
+
+  let semLocalizacao = 0;
+  const comDistancia = [];
+  for (const user of agricultores) {
+    if (req.user && user.id === req.user.id) continue;
+    const p = user.perfil || {};
+    if (!temCoordenadas(p)) { semLocalizacao += 1; continue; }
+    const distancia = distanciaKm(origem, p);
+    if (raio !== null && distancia > raio) continue;
+    comDistancia.push({
+      id: user.id,
+      nome: user.nome,
+      descricao: p.descricao ?? null,
+      bairro: p.bairro ?? null,
+      cidade: p.cidade ?? null,
+      estado: p.estado ?? null,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      foto_id: p.foto_id ?? null,
+      media_avaliacoes: p.media_avaliacoes ?? 0,
+      total_avaliacoes: p.total_avaliacoes ?? 0,
+      distancia_km: Math.round(distancia * 10) / 10,
+    });
+  }
+  comDistancia.sort((a, b) => a.distancia_km - b.distancia_km || a.nome.localeCompare(b.nome));
+
+  res.json({
+    origem,
+    items: comDistancia.slice(0, limit),
+    total: comDistancia.length,
+    sem_localizacao: semLocalizacao,
+  });
+}));
+
 router.get('/me/pagamento', requireAuth, requireRole('agricultor'), asyncRoute(async (req, res) => {
   const db = await getMongoDb();
   const user = await db.collection('usuarios').findOne({ id: req.user.id, role: 'agricultor', deleted_at: null });
@@ -104,24 +203,6 @@ router.get('/:id', asyncRoute(async (req, res) => {
 
 router.patch('/me', requireAuth, requireRole('agricultor'), asyncRoute(async (req, res) => {
   const body = req.body || {};
-  if (body.estado !== undefined && body.estado !== null && String(body.estado).length !== 2) {
-    throw httpError(400, 'VALIDATION', 'estado deve ter 2 caracteres');
-  }
-  if (body.latitude !== undefined && body.latitude !== null) {
-    const latitude = Number(body.latitude);
-    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-      throw httpError(400, 'VALIDATION', 'latitude fora de range');
-    }
-    body.latitude = latitude;
-  }
-  if (body.longitude !== undefined && body.longitude !== null) {
-    const longitude = Number(body.longitude);
-    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      throw httpError(400, 'VALIDATION', 'longitude fora de range');
-    }
-    body.longitude = longitude;
-  }
-
   if (body.formas_aceitas !== undefined) {
     const formas = body.formas_aceitas;
     if (!Array.isArray(formas) || !formas.length || formas.some((metodo) => !METODOS[metodo])) {
@@ -141,11 +222,16 @@ router.patch('/me', requireAuth, requireRole('agricultor'), asyncRoute(async (re
 
   if (body.foto_base64) body.foto_id = await criarImagemSeNecessario(body);
   const userFields = ['nome', 'telefone'];
-  const profileFields = [
-    'descricao', 'cidade', 'estado', 'cep', 'latitude', 'longitude', 'foto_id',
-    'formas_aceitas', 'chave_pix',
-  ];
-  const updates = { updated_at: new Date().toISOString() };
+  const profileFields = ['descricao', 'foto_id', 'formas_aceitas', 'chave_pix'];
+  const db = await getMongoDb();
+  const atual = await db.collection('usuarios').findOne(
+    { id: req.user.id, role: 'agricultor', deleted_at: null },
+    { projection: { perfil: 1 } }
+  );
+  if (!atual) throw httpError(404, 'NOT_FOUND', 'Agricultor não encontrado');
+  // Endereço (cep, rua, número, bairro, cidade, UF) + latitude/longitude automáticas
+  const { updates: updatesEndereco, geocodificado } = await prepararAtualizacaoEndereco(body, atual.perfil, 'perfil.');
+  const updates = { updated_at: new Date().toISOString(), ...updatesEndereco };
   for (const field of userFields) {
     if (body[field] !== undefined) updates[field] = body[field];
   }
@@ -153,7 +239,6 @@ router.patch('/me', requireAuth, requireRole('agricultor'), asyncRoute(async (re
     if (body[field] !== undefined) updates[`perfil.${field}`] = body[field];
   }
 
-  const db = await getMongoDb();
   if (body.foto_id !== undefined && body.foto_id !== null && !body.foto_base64) {
     const image = await db.collection('imagens').findOne({ id: body.foto_id }, { projection: { _id: 1 } });
     if (!image) throw httpError(400, 'VALIDATION', 'foto_id inexistente');
@@ -164,7 +249,12 @@ router.patch('/me', requireAuth, requireRole('agricultor'), asyncRoute(async (re
   );
   if (!result.matchedCount) throw httpError(404, 'NOT_FOUND', 'Agricultor não encontrado');
   const user = await db.collection('usuarios').findOne({ id: req.user.id });
-  res.json({ ...perfilPublico(user), recebimento: dadosRecebimento(user) });
+  res.json({
+    ...perfilPublico(user),
+    endereco: enderecoCompleto(user.perfil),
+    geocodificado,
+    recebimento: dadosRecebimento(user),
+  });
 }));
 
 module.exports = router;

@@ -828,3 +828,42 @@ O horário usado no texto pronto segue `APP_TIMEZONE` (padrão `America/Sao_Paul
 
 **Pipeline típico de uma rota protegida:**
 `requestLogger → cors → express.json → requireAuth → requireRole → validateBody → handler → errorHandler`
+---
+
+## Endereços e mapa
+
+Geocodificação (endereço → latitude/longitude) feita pelo backend com o Nominatim
+(OpenStreetMap), gratuito e sem chave. O CEP é completado no navegador pelo ViaCEP.
+Para usuários já cadastrados antes do mapa, rode uma vez `npm run db:geocodificar`.
+
+Campos de endereço (todos opcionais, `null` apaga):
+`cep` (8 dígitos, salvo como 00000-000), `logradouro`, `numero`, `complemento`,
+`bairro`, `cidade`, `estado` (UF, 2 letras), `latitude`, `longitude`.
+Se `latitude`/`longitude` não forem enviadas e algum campo do endereço mudar,
+elas são recalculadas automaticamente. Cliente: salvo em `usuarios.endereco`.
+Agricultor: salvo em `usuarios.perfil` (junto com cidade/estado/cep que já existiam).
+
+### PATCH /api/auth/me/endereco  (logado, cliente ou agricultor)
+Body: campos de endereço. Resposta: `{ endereco: {...}, geocodificado: true|false|null }`
+(`false` = endereço salvo mas não encontrado no mapa).
+
+`GET /api/auth/me` agora devolve também `endereco`.
+`PATCH /api/agricultores/me` aceita os mesmos campos de endereço e devolve `endereco` e `geocodificado`.
+O perfil público (`GET /api/agricultores/:id`) mostra só `bairro`, `cidade`, `estado`, `cep` e as coordenadas — rua e número não.
+
+### GET /api/agricultores/proximos  (público; login opcional)
+Query: `lat`, `lng` (opcionais — sem eles usa o endereço salvo do usuário logado),
+`raio_km` (opcional), `limit` (padrão 50, máx. 200).
+Resposta:
+```json
+{
+  "origem": { "latitude": -23.55, "longitude": -46.63, "fonte": "endereco" },
+  "items": [{ "id": 3, "nome": "Sítio", "bairro": null, "cidade": "Jundiaí", "estado": "SP",
+              "latitude": -23.18, "longitude": -46.89, "foto_id": null,
+              "media_avaliacoes": 4.6, "total_avaliacoes": 12, "distancia_km": 48.7 }],
+  "total": 3,
+  "sem_localizacao": 1
+}
+```
+`items` vem ordenado do mais perto ao mais longe (distância em linha reta).
+Erro `400 SEM_LOCALIZACAO` quando não há `lat/lng` nem endereço com coordenadas.

@@ -5,7 +5,8 @@ const { hashSenha, verificarSenha } = require('../utils/senha');
 const { obrigatorio, exigirEmail, exigirSenhaMinima, emEnum } = require('../utils/validacao');
 const { httpError } = require('../middleware/error');
 const { requireAuth } = require('../middleware/auth');
-const { asyncRoute, usuarioPublico } = require('../utils/mongo-helpers');
+const { asyncRoute, usuarioPublico, enderecoDoUsuario } = require('../utils/mongo-helpers');
+const { prepararAtualizacaoEndereco } = require('../utils/endereco');
 
 const router = express.Router();
 
@@ -37,6 +38,7 @@ router.post('/register', asyncRoute(async (req, res) => {
     senha_hash: await hashSenha(senha),
     role,
     telefone: telefone || null,
+    endereco: role === 'cliente' ? {} : null,
     perfil: role === 'agricultor' ? {
       descricao: null,
       cidade: null,
@@ -89,6 +91,33 @@ router.get('/me', requireAuth, asyncRoute(async (req, res) => {
   );
   if (!usuario) throw httpError(401, 'UNAUTHORIZED', 'Usuário não encontrado');
   res.json(usuarioPublico(usuario));
+}));
+
+/**
+ * PATCH /auth/me/endereco — salva o endereço do usuário logado (cliente ou agricultor).
+ * Body: { cep, logradouro, numero, complemento, bairro, cidade, estado } e,
+ * opcionalmente, { latitude, longitude } (ex.: "usar minha localização").
+ * Sem latitude/longitude, elas são calculadas a partir do endereço (OpenStreetMap).
+ */
+router.patch('/me/endereco', requireAuth, asyncRoute(async (req, res) => {
+  const db = await getMongoDb();
+  const usuario = await db.collection('usuarios').findOne({ _id: req.user.id, deleted_at: null });
+  if (!usuario) throw httpError(401, 'UNAUTHORIZED', 'Usuário não encontrado');
+
+  const prefixo = usuario.role === 'agricultor' ? 'perfil.' : 'endereco.';
+  const atual = usuario.role === 'agricultor' ? usuario.perfil : usuario.endereco;
+  const { updates, geocodificado } = await prepararAtualizacaoEndereco(req.body || {}, atual, prefixo);
+
+  // Cliente antigo pode ter `endereco: null` — o Mongo não cria subcampos dentro de null.
+  if (usuario.role !== 'agricultor' && !usuario.endereco) {
+    await db.collection('usuarios').updateOne({ _id: usuario._id }, { $set: { endereco: {} } });
+  }
+  await db.collection('usuarios').updateOne(
+    { _id: usuario._id },
+    { $set: { ...updates, updated_at: new Date().toISOString() } }
+  );
+  const atualizado = await db.collection('usuarios').findOne({ _id: usuario._id });
+  res.json({ endereco: enderecoDoUsuario(atualizado), geocodificado });
 }));
 
 module.exports = router;

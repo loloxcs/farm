@@ -18,6 +18,8 @@ import { renderMeusProdutos } from './pages/meus-produtos.js';
 import { renderPedidosLista } from './pages/pedidos-lista.js';
 import { renderPedidoDetalhe } from './pages/pedido-detalhe.js';
 import { renderPagamento } from './pages/pagamento.js';
+import { renderMapa } from './pages/mapa.js';
+import { renderMeuEndereco } from './pages/meu-endereco.js';
 
 // =============================================================
 // Header global
@@ -48,6 +50,8 @@ function renderHeader() {
     // Links principais conforme role
     if (role === 'cliente') {
       nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
+      nav.appendChild(el('a', { text: 'Mapa', attrs: { href: '#/mapa' } }));
+      nav.appendChild(el('a', { text: 'Meu endereço', attrs: { href: '#/meu-endereco' } }));
     } else if (role === 'agricultor') {
       nav.appendChild(el('a', { text: 'Dashboard', attrs: { href: '#/dashboard' } }));
       nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
@@ -76,6 +80,7 @@ function renderHeader() {
     }));
   } else {
     nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
+    nav.appendChild(el('a', { text: 'Mapa', attrs: { href: '#/mapa' } }));
     nav.appendChild(el('a', { text: 'Entrar', attrs: { href: '#/login' } }));
     nav.appendChild(el('a', {
       className: 'btn btn-primary',
@@ -131,6 +136,7 @@ router.register('#/login', renderLogin);
 router.register('#/registro', renderRegistro);
 router.register('#/agricultores', renderAgricultoresLista);
 router.register('#/agricultores/:id', renderAgricultorPerfil);
+router.register('#/mapa', renderMapa); // visitante usa a localização do navegador
 
 // Fase B — carrinho + chat
 router.register('#/carrinho/:agricultorId',
@@ -141,6 +147,9 @@ router.register('#/conversas/com/:outroId',
   exigirRole(null, renderConversaCom));
 router.register('#/conversas/:id',
   exigirRole(null, renderConversa));
+
+router.register('#/meu-endereco',
+  exigirRole('cliente', renderMeuEndereco));
 
 // Fase C — área do agricultor
 router.register('#/meu-perfil',
