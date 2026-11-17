@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const { obrigatorio, inteiroPositivo, paginacao } = require('../utils/validacao');
 const { httpError } = require('../middleware/error');
-const { asyncRoute, idParam } = require('../utils/mongo-helpers');
+const { asyncRoute, idParam, identidadePublica } = require('../utils/mongo-helpers');
 
 const avaliacoes = express.Router();
 const avaliacoesPorAgr = express.Router({ mergeParams: true });
@@ -82,6 +82,30 @@ avaliacoes.post('/', requireAuth, requireRole('cliente'), asyncRoute(async (req,
   });
 }));
 
+/** GET /avaliacoes/minhas — avaliações que o cliente logado fez (só ele vê). */
+avaliacoes.get('/minhas', requireAuth, requireRole('cliente'), asyncRoute(async (req, res) => {
+  const db = await getMongoDb();
+  const reviews = await db.collection('avaliacoes').find({ cliente_id: req.user.id }, { projection: { _id: 0 } })
+    .sort({ updated_at: -1, id: -1 }).toArray();
+  const farmers = await db.collection('usuarios').find(
+    { id: { $in: [...new Set(reviews.map((r) => r.agricultor_id))] } },
+    { projection: { id: 1, nome: 1, role: 1, 'perfil.foto_id': 1 } }
+  ).toArray();
+  const byId = new Map(farmers.map((f) => [f.id, f]));
+  res.json({
+    items: reviews.map((r) => ({
+      id: r.id,
+      agricultor: { ...identidadePublica(byId.get(r.agricultor_id), 'Agricultor'), id: r.agricultor_id },
+      pedido_id: r.pedido_id,
+      nota: r.nota,
+      comentario: r.comentario,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    })),
+    total: reviews.length,
+  });
+}));
+
 avaliacoesPorAgr.get('/', asyncRoute(async (req, res) => {
   const agricultorId = idParam(req.params.id, 'agricultor_id');
   const { page, limit, offset } = paginacao(req.query);
@@ -100,11 +124,12 @@ avaliacoesPorAgr.get('/', asyncRoute(async (req, res) => {
   ]);
   const users = await db.collection('usuarios').find({
     id: { $in: [...new Set(reviews.map((review) => review.cliente_id))] },
-  }, { projection: { id: 1, nome: 1 } }).toArray();
-  const names = new Map(users.map((user) => [user.id, user.nome]));
+  }, { projection: { id: 1, nome: 1, role: 1, foto_id: 1 } }).toArray();
+  const byId = new Map(users.map((user) => [user.id, user]));
   const items = reviews.map((review) => ({
     id: review.id,
-    cliente: { id: review.cliente_id, nome: names.get(review.cliente_id) || 'Cliente' },
+    // Só nome e foto do cliente — endereço e histórico dele são privados.
+    cliente: { ...identidadePublica(byId.get(review.cliente_id), 'Cliente'), id: review.cliente_id },
     nota: review.nota,
     comentario: review.comentario,
     created_at: review.created_at,

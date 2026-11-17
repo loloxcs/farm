@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const { obrigatorio } = require('../utils/validacao');
 const { httpError } = require('../middleware/error');
-const { asyncRoute, idParam } = require('../utils/mongo-helpers');
+const { asyncRoute, idParam, fotoDoUsuario } = require('../utils/mongo-helpers');
 const { METODOS, metodosAceitos, rotuloMetodo } = require('../utils/pagamentos');
 
 const router = express.Router();
@@ -58,13 +58,13 @@ router.get('/', requireAuth, asyncRoute(async (req, res) => {
 
   const items = await Promise.all(conversations.map(async (conversation) => {
     const [client, farmer, lastMessage] = await Promise.all([
-      db.collection('usuarios').findOne({ id: conversation.cliente_id }, { projection: { nome: 1 } }),
-      db.collection('usuarios').findOne({ id: conversation.agricultor_id }, { projection: { nome: 1 } }),
+      db.collection('usuarios').findOne({ id: conversation.cliente_id }, { projection: { id: 1, nome: 1, role: 1, foto_id: 1 } }),
+      db.collection('usuarios').findOne({ id: conversation.agricultor_id }, { projection: { id: 1, nome: 1, role: 1, 'perfil.foto_id': 1 } }),
       db.collection('mensagens').findOne({ conversa_id: conversation.id }, { sort: { created_at: -1, id: -1 } }),
     ]);
     const other = req.user.role === 'cliente'
-      ? { id: conversation.agricultor_id, nome: farmer?.nome, role: 'agricultor' }
-      : { id: conversation.cliente_id, nome: client?.nome, role: 'cliente' };
+      ? { id: conversation.agricultor_id, nome: farmer?.nome, foto_id: fotoDoUsuario(farmer), role: 'agricultor' }
+      : { id: conversation.cliente_id, nome: client?.nome, foto_id: fotoDoUsuario(client), role: 'cliente' };
     let preview = null;
     if (lastMessage?.tipo === 'texto') preview = lastMessage.conteudo;
     if (lastMessage?.tipo === 'snapshot') preview = '[snapshot do carrinho]';

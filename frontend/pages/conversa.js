@@ -123,6 +123,7 @@ async function montarConversa(outlet, { conversaId, outroIdAlvo }) {
           estado.outroId = Number(minha.outro.id);
           estado.outroNome = minha.outro.nome || null;
           estado.outroRole = minha.outro.role || null;
+          estado.outroFotoId = minha.outro.foto_id || null;
         }
       }
       // Fallback: infere outroId pelas mensagens se ainda não temos

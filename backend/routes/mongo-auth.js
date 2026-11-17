@@ -7,6 +7,7 @@ const { httpError } = require('../middleware/error');
 const { requireAuth } = require('../middleware/auth');
 const { asyncRoute, usuarioPublico, enderecoDoUsuario } = require('../utils/mongo-helpers');
 const { prepararAtualizacaoEndereco } = require('../utils/endereco');
+const { criarImagemSeNecessario } = require('../utils/imagens-mongo');
 
 const router = express.Router();
 
@@ -91,6 +92,38 @@ router.get('/me', requireAuth, asyncRoute(async (req, res) => {
   );
   if (!usuario) throw httpError(401, 'UNAUTHORIZED', 'Usuário não encontrado');
   res.json(usuarioPublico(usuario));
+}));
+
+/**
+ * PATCH /auth/me — dados básicos do próprio usuário: nome, telefone e foto
+ * (foto_base64 + foto_mime, ou foto_id: null para remover).
+ * O agricultor continua editando o perfil completo em PATCH /agricultores/me.
+ */
+router.patch('/me', requireAuth, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const db = await getMongoDb();
+  const usuario = await db.collection('usuarios').findOne({ _id: req.user.id, deleted_at: null });
+  if (!usuario) throw httpError(401, 'UNAUTHORIZED', 'Usuário não encontrado');
+
+  const updates = { updated_at: new Date().toISOString() };
+  if (body.nome !== undefined) {
+    const nome = String(body.nome || '').trim();
+    if (!nome) throw httpError(400, 'VALIDATION', 'Informe o nome');
+    if (nome.length > 120) throw httpError(400, 'VALIDATION', 'nome deve ter até 120 caracteres');
+    updates.nome = nome;
+  }
+  if (body.telefone !== undefined) {
+    const tel = body.telefone === null ? '' : String(body.telefone).trim();
+    if (tel.length > 30) throw httpError(400, 'VALIDATION', 'telefone deve ter até 30 caracteres');
+    updates.telefone = tel || null;
+  }
+  const campoFoto = usuario.role === 'agricultor' ? 'perfil.foto_id' : 'foto_id';
+  if (body.foto_base64) updates[campoFoto] = await criarImagemSeNecessario(body);
+  else if (body.foto_id === null) updates[campoFoto] = null;
+
+  await db.collection('usuarios').updateOne({ _id: usuario._id }, { $set: updates });
+  const atualizado = await db.collection('usuarios').findOne({ _id: usuario._id });
+  res.json(usuarioPublico(atualizado));
 }));
 
 /**

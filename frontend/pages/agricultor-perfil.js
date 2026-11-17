@@ -351,7 +351,7 @@ function itemAvaliacao(av) {
 
   const header = el('div', { className: 'review-header' });
   const author = el('div', { className: 'review-author' });
-  author.appendChild(criarAvatar(av.cliente?.nome, null, 32));
+  author.appendChild(criarAvatar(av.cliente?.nome, av.cliente?.foto_id, 32));
   author.appendChild(el('span', { text: av.cliente?.nome || 'Cliente' }));
   header.appendChild(author);
 

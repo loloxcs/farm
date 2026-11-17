@@ -19,7 +19,7 @@ import { renderPedidosLista } from './pages/pedidos-lista.js';
 import { renderPedidoDetalhe } from './pages/pedido-detalhe.js';
 import { renderPagamento } from './pages/pagamento.js';
 import { renderMapa } from './pages/mapa.js';
-import { renderMeuEndereco } from './pages/meu-endereco.js';
+import { renderPerfilCliente } from './pages/perfil-cliente.js';
 
 // =============================================================
 // Header global
@@ -51,7 +51,6 @@ function renderHeader() {
     if (role === 'cliente') {
       nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
       nav.appendChild(el('a', { text: 'Mapa', attrs: { href: '#/mapa' } }));
-      nav.appendChild(el('a', { text: 'Meu endereço', attrs: { href: '#/meu-endereco' } }));
     } else if (role === 'agricultor') {
       nav.appendChild(el('a', { text: 'Dashboard', attrs: { href: '#/dashboard' } }));
       nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
@@ -59,6 +58,9 @@ function renderHeader() {
     }
     nav.appendChild(el('a', { text: 'Conversas', attrs: { href: '#/conversas' } }));
     nav.appendChild(el('a', { text: 'Pedidos', attrs: { href: '#/pedidos' } }));
+    if (role === 'cliente') {
+      nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
+    }
 
     // Nome do usuário (texto, sem link)
     nav.appendChild(el('span', {
@@ -148,12 +150,13 @@ router.register('#/conversas/com/:outroId',
 router.register('#/conversas/:id',
   exigirRole(null, renderConversa));
 
-router.register('#/meu-endereco',
-  exigirRole('cliente', renderMeuEndereco));
+// Endereço agora fica dentro de "Meu perfil" (links antigos continuam funcionando).
+router.register('#/meu-endereco', () => router.replace('#/meu-perfil?aba=endereco'));
 
 // Fase C — área do agricultor
+// "Meu perfil": mesma rota para os dois papéis, telas diferentes.
 router.register('#/meu-perfil',
-  exigirRole('agricultor', renderMeuPerfil));
+  exigirRole(null, (ctx) => (getUser()?.role === 'agricultor' ? renderMeuPerfil(ctx) : renderPerfilCliente(ctx))));
 router.register('#/dashboard',
   exigirRole('agricultor', renderDashboard));
 router.register('#/meus-produtos',

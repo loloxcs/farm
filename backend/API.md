@@ -867,3 +867,17 @@ Resposta:
 ```
 `items` vem ordenado do mais perto ao mais longe (distância em linha reta).
 Erro `400 SEM_LOCALIZACAO` quando não há `lat/lng` nem endereço com coordenadas.
+
+## Perfil do cliente
+
+### PATCH /api/auth/me  (logado)
+Body (todos opcionais): `nome`, `telefone`, `foto_base64` + `foto_mime`, ou `foto_id: null` para remover a foto.
+Resposta: o mesmo formato de `GET /api/auth/me` (`id, nome, email, role, telefone, foto_id, endereco`).
+Cliente guarda a foto em `usuarios.foto_id`; agricultor em `usuarios.perfil.foto_id`.
+
+### GET /api/avaliacoes/minhas  (cliente)
+Avaliações feitas pelo cliente logado: `{ items: [{ id, agricultor: { id, nome, foto_id }, pedido_id, nota, comentario, created_at, updated_at }], total }`.
+
+### Privacidade
+Quando um usuário aparece para outro (`GET /api/conversas` → `outro`, `GET /api/agricultores/:id/avaliacoes` → `cliente`)
+só saem `id`, `nome` e `foto_id`. Endereço, telefone, email e histórico do cliente só aparecem para ele mesmo.

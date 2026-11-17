@@ -62,7 +62,7 @@ function cardConversa(c) {
     attrs: { href: `#/conversas/${c.id}` },
   });
 
-  card.appendChild(criarAvatar(outro.nome, null, 48));
+  card.appendChild(criarAvatar(outro.nome, outro.foto_id, 48));
 
   const corpo = el('div', { className: 'conversa-corpo' });
 

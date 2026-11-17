@@ -80,7 +80,7 @@ export async function renderMapa({ outlet }) {
     controles.appendChild(el('a', {
       className: 'btn btn-ghost',
       text: 'Alterar meu endereço',
-      attrs: { href: user.role === 'agricultor' ? '#/meu-perfil' : '#/meu-endereco?voltar=mapa' },
+      attrs: { href: '#/meu-perfil?voltar=mapa' },
     }));
   }
   outlet.appendChild(controles);
@@ -227,7 +227,7 @@ function avisoSemLocalizacao(user) {
   box.appendChild(el('a', {
     className: 'btn btn-primary',
     text: 'Cadastrar meu endereço',
-    attrs: { href: user.role === 'agricultor' ? '#/meu-perfil' : '#/meu-endereco?voltar=mapa' },
+    attrs: { href: '#/meu-perfil?voltar=mapa' },
   }));
   return box;
 }

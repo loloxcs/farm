@@ -361,3 +361,13 @@ export async function buscarCep(cep) {
     estado: data.uf || '',
   };
 }
+
+/** PATCH /auth/me — nome, telefone e foto do usuário logado ({ foto_base64, foto_mime } ou foto_id: null). */
+export function atualizarMeusDados(patch) {
+  return request('PATCH', '/auth/me', patch);
+}
+
+/** GET /avaliacoes/minhas — avaliações que o cliente logado fez. */
+export function listarMinhasAvaliacoes() {
+  return request('GET', '/avaliacoes/minhas');
+}

@@ -25,7 +25,26 @@ function usuarioPublico(usuario) {
     email: usuario.email,
     role: usuario.role,
     telefone: usuario.telefone,
+    foto_id: fotoDoUsuario(usuario),
     endereco: enderecoDoUsuario(usuario),
+  };
+}
+
+/** Foto do usuário: cliente guarda em `foto_id`, agricultor em `perfil.foto_id`. */
+function fotoDoUsuario(usuario) {
+  if (!usuario) return null;
+  return (usuario.role === 'agricultor' ? usuario.perfil?.foto_id : usuario.foto_id) ?? null;
+}
+
+/**
+ * O que um usuário pode ver de OUTRO (conversas, avaliações): só nome e foto.
+ * Endereço, telefone, email e histórico nunca saem por aqui.
+ */
+function identidadePublica(usuario, fallbackNome = 'Usuário') {
+  return {
+    id: usuario?.id ?? null,
+    nome: usuario?.nome || fallbackNome,
+    foto_id: fotoDoUsuario(usuario),
   };
 }
 
@@ -49,4 +68,7 @@ function enderecoDoUsuario(usuario) {
   };
 }
 
-module.exports = { asyncRoute, idParam, pagina, inteiroPositivo, usuarioPublico, enderecoDoUsuario };
+module.exports = {
+  asyncRoute, idParam, pagina, inteiroPositivo, usuarioPublico, enderecoDoUsuario,
+  fotoDoUsuario, identidadePublica,
+};
