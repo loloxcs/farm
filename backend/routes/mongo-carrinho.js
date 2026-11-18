@@ -56,6 +56,8 @@ async function montarResposta(db, cart, agricultorId) {
       quantidade: item.quantidade,
       preco_unit: item.preco_unit,
       nome: product?.nome || 'Produto indisponível',
+      unidade: product?.unidade || null,
+      foto_id: product?.foto_id ?? null,
       subtotal: item.quantidade * item.preco_unit,
     };
   });

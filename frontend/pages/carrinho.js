@@ -13,8 +13,7 @@
 
 import {
   el, limpar, bannerErro, criarAvatar, formatarMoeda,
-  loading, estadoVazio, toast,
-} from '../ui.js';
+  loading, estadoVazio, toast, icone } from '../ui.js';
 import {
   getCarrinho, atualizarItemCarrinho, removerItemCarrinho,
   limparCarrinho, enviarSnapshot, getAgricultor, imagemUrl,
@@ -284,8 +283,8 @@ function linhaItem(item, agricultorId, agricultor, container) {
   // Remover
   const btnRemover = el('button', {
     className: 'btn btn-ghost carrinho-item-remover',
-    text: '🗑️',
-    attrs: { type: 'button', 'aria-label': 'Remover item' },
+    attrs: { type: 'button', 'aria-label': 'Remover item', title: 'Remover item' },
+    children: [icone('lixeira', { tamanho: 18 })],
   });
   btnRemover.addEventListener('click', async () => {
     btnRemover.disabled = true;

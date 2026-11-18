@@ -77,7 +77,7 @@ function cardConversa(c) {
   if (!ult) {
     previewTxt = 'Sem mensagens ainda';
   } else if (ult.tipo === 'snapshot') {
-    previewTxt = '📦 Snapshot do carrinho';
+    previewTxt = '🧺 Carrinho enviado';
   } else {
     const t = ult.preview || '';
     previewTxt = t.length > PREVIEW_MAX ? t.slice(0, PREVIEW_MAX - 1) + '…' : t;

@@ -13,7 +13,7 @@
 
 import {
   el, limpar, bannerErro, formatarMoeda, loading, estadoVazio, toast,
-  campoUploadFoto,
+  campoUploadFoto, icone,
 } from '../ui.js';
 import {
   listarProdutosDoAgricultor, criarProduto, atualizarProduto,
@@ -106,8 +106,8 @@ function renderPageHeader() {
 
   wrap.appendChild(el('button', {
     className: 'btn btn-primary',
-    text: '+ Novo produto',
     attrs: { type: 'button', 'data-acao': 'novo-produto' },
+    children: [icone('mais', { tamanho: 18 }), el('span', { text: 'Novo produto' })],
   }));
 
   return wrap;
@@ -156,7 +156,8 @@ function renderLista(area, produtosResp, page, erroSlot, recarregar) {
 }
 
 function cardProduto(produto, erroSlot, recarregar) {
-  const card = el('div', { className: 'card card-produto card-meu-produto' });
+  const esgotado = Number(produto.estoque) <= 0;
+  const card = el('div', { className: `card card-produto card-meu-produto${esgotado ? ' is-esgotado' : ''}` });
 
   // Foto
   const fotoWrap = el('div', { className: 'produto-foto' });
@@ -170,6 +171,7 @@ function cardProduto(produto, erroSlot, recarregar) {
   } else {
     fotoWrap.textContent = 'Sem foto';
   }
+  if (esgotado) fotoWrap.appendChild(el('span', { className: 'produto-selo', text: 'Sem estoque' }));
   card.appendChild(fotoWrap);
 
   // Nome
@@ -183,16 +185,19 @@ function cardProduto(produto, erroSlot, recarregar) {
     }));
   }
 
-  // Preço por unidade
-  card.appendChild(el('p', {
-    className: 'produto-preco',
-    text: `${formatarMoeda(produto.preco)} / ${produto.unidade || 'un'}`,
-  }));
-
-  // Estoque
-  card.appendChild(el('span', {
-    className: 'produto-estoque',
-    text: `Estoque: ${formatarEstoque(produto.estoque, produto.unidade)}`,
+  // Preço por unidade + estoque
+  card.appendChild(el('div', {
+    className: 'produto-rodape',
+    children: [
+      el('p', {
+        className: 'produto-preco',
+        children: [el('span', { text: formatarMoeda(produto.preco) }), el('span', { className: 'produto-unidade', text: ` / ${produto.unidade || 'un'}` })],
+      }),
+      el('span', {
+        className: 'produto-estoque',
+        text: `Estoque: ${formatarEstoque(produto.estoque, produto.unidade)}`,
+      }),
+    ],
   }));
 
   // Botões de ação no rodapé do card

@@ -5,7 +5,7 @@
 
 import {
   el, limpar, bannerErro, criarAvatar, renderEstrelas,
-  formatarMoeda, formatarData, loading, estadoVazio, toast,
+  formatarMoeda, formatarData, loading, estadoVazio, toast, icone,
 } from '../ui.js';
 import {
   getAgricultor, listarProdutosDoAgricultor, listarAvaliacoesDoAgricultor,
@@ -41,8 +41,11 @@ export async function renderAgricultorPerfil({ outlet, params }) {
 
   // Produtos
   const secProd = el('section', { className: 'section' });
-  secProd.appendChild(el('h2', { className: 'section-title', text: 'Produtos disponíveis' }));
   const produtos = produtosResp?.items || [];
+  secProd.appendChild(el('h2', {
+    className: 'section-title',
+    children: [el('span', { text: 'Produtos disponíveis' }), produtos.length ? el('span', { className: 'section-title-extra', text: String(produtos.length) }) : null],
+  }));
   if (produtos.length === 0) {
     secProd.appendChild(estadoVazio('Este agricultor ainda não cadastrou produtos.'));
   } else {
@@ -61,13 +64,17 @@ export async function renderAgricultorPerfil({ outlet, params }) {
     for (const f of feiras) {
       const meu = f.participantes.find((p) => Number(p.agricultor.id) === Number(agricultor.id));
       const card = el('div', { className: 'card feira-card' });
-      card.appendChild(el('h3', { text: `🧺 ${f.nome}` }));
+      card.appendChild(el('h3', { children: [el('span', { className: 'feira-card-icone', children: [icone('barraca', { tamanho: 18 })] }), el('span', { text: f.nome })] }));
       card.appendChild(el('p', { className: 'feira-endereco', text: enderecoFeira(f) }));
       card.appendChild(el('p', { className: 'feira-meus-horarios', text: textoHorarios(meu?.horarios || []) }));
       lista.appendChild(card);
     }
     secFeiras.appendChild(lista);
-    secFeiras.appendChild(el('a', { className: 'btn btn-ghost', text: 'Ver feiras no mapa', attrs: { href: '#/mapa' } }));
+    secFeiras.appendChild(el('a', {
+      className: 'btn btn-ghost',
+      attrs: { href: '#/mapa' },
+      children: [icone('mapa', { tamanho: 16 }), el('span', { text: 'Ver feiras no mapa' })],
+    }));
     outlet.appendChild(secFeiras);
   }
 
@@ -101,7 +108,12 @@ function renderHeader(agricultor) {
   info.appendChild(el('h1', { className: 'profile-nome', text: agricultor.nome || 'Agricultor' }));
 
   const local = [perfil.cidade, perfil.estado].filter(Boolean).join(' / ');
-  if (local) info.appendChild(el('p', { className: 'profile-local', text: local }));
+  if (local) {
+    info.appendChild(el('p', {
+      className: 'profile-local',
+      children: [icone('pino', { tamanho: 16 }), el('span', { text: local })],
+    }));
+  }
 
   if (perfil.descricao) {
     info.appendChild(el('p', { className: 'profile-descricao', text: perfil.descricao }));
@@ -111,10 +123,12 @@ function renderHeader(agricultor) {
 
   // Formas de pagamento aceitas (a chave PIX em si só aparece no pagamento de um pedido confirmado)
   if (Array.isArray(perfil.formas_aceitas) && perfil.formas_aceitas.length > 0) {
-    info.appendChild(el('p', {
-      className: 'profile-pagamento',
-      text: `Aceita: ${perfil.formas_aceitas.map((f) => f.rotulo).join(' · ')}`,
-    }));
+    const formas = el('div', { className: 'profile-pagamento' });
+    formas.appendChild(el('span', { className: 'profile-pagamento-label', text: 'Aceita' }));
+    for (const f of perfil.formas_aceitas) {
+      formas.appendChild(el('span', { className: 'chip', text: f.rotulo }));
+    }
+    info.appendChild(formas);
   }
 
   // Actions — Fase B: ativadas conforme role
@@ -129,8 +143,8 @@ function renderHeader(agricultor) {
     if (logado) {
       actions.appendChild(el('button', {
         className: 'btn btn-primary',
-        text: 'Abrir conversa',
         attrs: { type: 'button' },
+        children: [icone('conversa', { tamanho: 18 }), el('span', { text: 'Abrir conversa' })],
         on: {
           click: () => { location.hash = `#/conversas/com/${agricultor.id}`; },
         },
@@ -149,8 +163,8 @@ function renderHeader(agricultor) {
   if (role === 'cliente') {
     actions.appendChild(el('a', {
       className: 'btn btn-secondary',
-      text: 'Ver carrinho',
       attrs: { href: `#/carrinho/${agricultor.id}` },
+      children: [icone('cesta', { tamanho: 18 }), el('span', { text: 'Ver carrinho' })],
     }));
   } else if (!logado) {
     actions.appendChild(el('a', {
@@ -178,7 +192,8 @@ function renderHeader(agricultor) {
 }
 
 function cardProduto(p, agricultorId) {
-  const card = el('div', { className: 'card card-produto' });
+  const esgotado = Number(p.estoque) <= 0;
+  const card = el('div', { className: `card card-produto${esgotado ? ' is-esgotado' : ''}` });
 
   const fotoWrap = el('div', { className: 'produto-foto' });
   if (p.foto_id) {
@@ -191,22 +206,28 @@ function cardProduto(p, agricultorId) {
   } else {
     fotoWrap.textContent = 'Sem foto';
   }
+  if (esgotado) fotoWrap.appendChild(el('span', { className: 'produto-selo', text: 'Esgotado' }));
   card.appendChild(fotoWrap);
 
   card.appendChild(el('p', { className: 'produto-nome', text: p.nome || 'Produto' }));
+  if (p.descricao) card.appendChild(el('p', { className: 'produto-descricao', text: p.descricao }));
 
   if (p.categoria?.nome) {
     card.appendChild(el('span', { className: 'produto-categoria', text: p.categoria.nome }));
   }
 
-  card.appendChild(el('p', {
-    className: 'produto-preco',
-    text: `${formatarMoeda(p.preco)} / ${p.unidade || 'un'}`,
-  }));
-
-  card.appendChild(el('span', {
-    className: 'produto-estoque',
-    text: `Estoque: ${formatarEstoque(p.estoque, p.unidade)}`,
+  card.appendChild(el('div', {
+    className: 'produto-rodape',
+    children: [
+      el('p', {
+        className: 'produto-preco',
+        children: [el('span', { text: formatarMoeda(p.preco) }), el('span', { className: 'produto-unidade', text: ` / ${p.unidade || 'un'}` })],
+      }),
+      el('span', {
+        className: 'produto-estoque',
+        text: esgotado ? 'Sem estoque' : `${formatarEstoque(p.estoque, p.unidade)} disponíveis`,
+      }),
+    ],
   }));
 
   // Fase B — Adicionar ao carrinho. Comportamento depende do role.
@@ -246,6 +267,15 @@ function addToCartArea(produto, agricultorId) {
       attrs: { type: 'button', disabled: true },
     }));
     wrap.appendChild(wrapBtn);
+    return wrap;
+  }
+
+  if (Number(produto.estoque) <= 0) {
+    wrap.appendChild(el('button', {
+      className: 'btn btn-secondary btn-block',
+      text: 'Esgotado',
+      attrs: { type: 'button', disabled: true },
+    }));
     return wrap;
   }
 
@@ -341,7 +371,7 @@ function montarPromptQtd(produto, agricultorId, wrap) {
       // Recolhe o prompt e mostra confirmação no card
       limpar(wrap);
       const ok = el('div', { className: 'add-cart-ok' });
-      ok.appendChild(el('span', { text: '✓ Adicionado ao carrinho' }));
+      ok.appendChild(el('span', { text: 'Adicionado ao carrinho' }));
       ok.appendChild(el('a', {
         className: 'btn btn-ghost',
         text: 'Ver carrinho',

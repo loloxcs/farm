@@ -81,7 +81,7 @@ function renderPageHeader() {
   wrap.appendChild(el('h1', { className: 'page-title', text: 'Pedidos' }));
   wrap.appendChild(el('p', {
     className: 'page-subtitle',
-    text: 'Acompanhe o andamento dos pedidos confirmados a partir dos snapshots de carrinho.',
+    text: 'Acompanhe cada pedido, do carrinho enviado até a entrega.',
   }));
   return wrap;
 }

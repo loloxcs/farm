@@ -1,6 +1,6 @@
 // pages/login.js — RF02 (POST /auth/login)
 
-import { el, limpar, bannerErro } from '../ui.js';
+import { el, limpar, bannerErro, layoutAutenticacao } from '../ui.js';
 import { authLogin } from '../api.js';
 import { setToken, setUser, isAuthenticated, getUser } from '../auth.js';
 import { navigate } from '../router.js';
@@ -19,8 +19,14 @@ export function renderLogin({ outlet }) {
     return;
   }
 
-  const form = el('form', { className: 'form', attrs: { novalidate: true } });
-  form.appendChild(el('h1', { text: 'Entrar' }));
+  const form = el('form', { className: 'form form-auth', attrs: { novalidate: true } });
+  form.appendChild(el('div', {
+    className: 'form-cabecalho',
+    children: [
+      el('h1', { text: 'Entrar' }),
+      el('p', { className: 'form-cabecalho-sub', text: 'Acesse sua conta Roça.' }),
+    ],
+  }));
 
   const erroSlot = el('div'); // espaço pra banner de erro
   form.appendChild(erroSlot);
@@ -87,5 +93,9 @@ export function renderLogin({ outlet }) {
     }
   });
 
-  outlet.appendChild(form);
+  outlet.appendChild(layoutAutenticacao(form, {
+    titulo: 'Que bom te ver de novo!',
+    texto: 'Entre para acompanhar seus pedidos, conversar com os agricultores e montar sua próxima cesta.',
+    itens: [{ icone: 'cesta', texto: 'Produtos colhidos na semana' }, { icone: 'conversa', texto: 'Chat direto com quem planta' }, { icone: 'escudo', texto: 'Pagamento só após a confirmação' }],
+  }));
 }

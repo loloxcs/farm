@@ -9,8 +9,20 @@
  */
 
 import {
-  el, limpar, bannerErro, loading, toast, formatarMoeda,
+  el, limpar, bannerErro, loading, toast, formatarMoeda, icone,
 } from '../ui.js';
+
+// Paleta dos gráficos (mesmas cores do styles.css)
+const COR = {
+  verde: '#2f6b3f',
+  verdeClaro: 'rgba(47, 107, 63, 0.12)',
+  terra: '#c8642c',
+  mel: '#d9a23a',
+  azul: '#3f6f9a',
+  cinza: '#9aa294',
+  texto: '#5f6b5c',
+  grade: 'rgba(31, 42, 31, 0.06)',
+};
 import { getDashboardAgricultor } from '../api.js';
 import { getUser } from '../auth.js';
 import { navigate } from '../router.js';
@@ -31,8 +43,26 @@ export async function renderDashboard({ outlet }) {
     
     const container = el('div', { className: 'dashboard-container' });
     
-    // Título
-    container.appendChild(el('h1', { text: 'Dashboard', className: 'dashboard-titulo' }));
+    // Cabeçalho com saudação e atalhos
+    const primeiroNome = (user.nome || '').split(' ')[0];
+    container.appendChild(el('div', {
+      className: 'page-header page-header-acoes',
+      children: [
+        el('div', {
+          children: [
+            el('h1', { className: 'page-title dashboard-titulo', text: primeiroNome ? `Olá, ${primeiroNome}!` : 'Painel' }),
+            el('p', { className: 'page-subtitle', text: 'Acompanhe suas vendas, pedidos e produtos em um só lugar.' }),
+          ],
+        }),
+        el('div', {
+          className: 'page-header-botoes',
+          children: [
+            el('a', { className: 'btn btn-secondary', attrs: { href: '#/pedidos' }, children: [icone('recibo', { tamanho: 18 }), el('span', { text: 'Ver pedidos' })] }),
+            el('a', { className: 'btn btn-primary', attrs: { href: '#/meus-produtos' }, children: [icone('mais', { tamanho: 18 }), el('span', { text: 'Gerenciar produtos' })] }),
+          ],
+        }),
+      ],
+    }));
     
     // Cards KPI
     const kpiGrid = el('div', { className: 'dashboard-kpi-grid' });
@@ -40,28 +70,28 @@ export async function renderDashboard({ outlet }) {
     kpiGrid.appendChild(criarCardKPI(
       'Faturamento Total',
       formatarMoeda(dados.faturamento_total),
-      '💰',
+      'carteira',
       'primary'
     ));
     
     kpiGrid.appendChild(criarCardKPI(
       'Total de Pedidos',
       String(dados.pedidos_total),
-      '📦',
+      'pacote',
       'info'
     ));
     
     kpiGrid.appendChild(criarCardKPI(
       'Produtos Ativos',
       String(dados.produtos_ativos),
-      '🌾',
+      'broto',
       'success'
     ));
     
     kpiGrid.appendChild(criarCardKPI(
       'Clientes Únicos',
       String(dados.clientes_unicos),
-      '👥',
+      'pessoas',
       'warning'
     ));
     
@@ -99,6 +129,10 @@ export async function renderDashboard({ outlet }) {
     await esperarChartjs();
     
     // Renderiza os gráficos
+    if (typeof Chart !== 'undefined') {
+      Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+      Chart.defaults.color = COR.texto;
+    }
     renderGraficoFaturamento(dados.faturamento_mensal);
     renderGraficoPedidosPorStatus(dados.pedidos_por_status);
     renderGraficoTopProdutos(dados.produtos_top_5);
@@ -112,13 +146,13 @@ export async function renderDashboard({ outlet }) {
 /**
  * Cria um card KPI (Key Performance Indicator)
  */
-function criarCardKPI(titulo, valor, emoji, tipo = 'primary') {
+function criarCardKPI(titulo, valor, nomeIcone, tipo = 'primary') {
   const card = el('div', {
     className: `dashboard-kpi dashboard-kpi-${tipo}`
   });
   
   const header = el('div', { className: 'dashboard-kpi-header' });
-  header.appendChild(el('span', { className: 'dashboard-kpi-emoji', text: emoji }));
+  header.appendChild(el('span', { className: 'dashboard-kpi-emoji', children: [icone(nomeIcone, { tamanho: 20 })] }));
   header.appendChild(el('span', { className: 'dashboard-kpi-titulo', text: titulo }));
   
   card.appendChild(header);
@@ -133,6 +167,7 @@ function criarCardKPI(titulo, valor, emoji, tipo = 'primary') {
 function criarSecaoGrafico(titulo, canvasId, tipo) {
   const secao = el('div', { className: 'dashboard-grafico' });
   
+  secao.className = `dashboard-grafico dashboard-grafico-${tipo}`;
   secao.appendChild(el('h3', { text: titulo, className: 'dashboard-grafico-titulo' }));
   
   const canvasWrapper = el('div', { className: 'dashboard-canvas-wrapper' });
@@ -187,35 +222,36 @@ function renderGraficoFaturamento(dados) {
       datasets: [{
         label: 'Faturamento (R$)',
         data: valores,
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        borderWidth: 3,
-        tension: 0.3,
+        borderColor: COR.verde,
+        backgroundColor: COR.verdeClaro,
+        borderWidth: 2.5,
+        tension: 0.35,
         fill: true,
-        pointRadius: 5,
-        pointBackgroundColor: '#22c55e',
+        pointRadius: 4,
+        pointBackgroundColor: COR.verde,
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
       }]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: true,
-          labels: { color: '#666' }
-        }
+        legend: { display: false }
       },
       scales: {
         y: {
           beginAtZero: true,
-          max: max * 1.1,
-          ticks: { color: '#666' },
-          grid: { color: 'rgba(0,0,0,0.05)' }
+          suggestedMax: max,
+          ticks: {
+            color: COR.texto,
+            maxTicksLimit: 6,
+            callback: (v) => formatarMoeda(v).replace(',00', ''),
+          },
+          grid: { color: COR.grade }
         },
         x: {
-          ticks: { color: '#666' },
+          ticks: { color: COR.texto },
           grid: { display: false }
         }
       }
@@ -244,10 +280,10 @@ function renderGraficoPedidosPorStatus(dados) {
   ];
   
   const cores = [
-    '#ef4444', // vermelho (pendente)
-    '#f59e0b', // laranja (confirmado)
-    '#22c55e', // verde (entregue)
-    '#6b7280'  // cinza (cancelado)
+    COR.mel,   // pendente
+    COR.azul,  // confirmado
+    COR.verde, // entregue
+    COR.cinza, // cancelado
   ];
   
   new Chart(ctx, {
@@ -258,17 +294,19 @@ function renderGraficoPedidosPorStatus(dados) {
         data: valores,
         backgroundColor: cores,
         borderColor: '#fff',
-        borderWidth: 2,
+        borderWidth: 3,
+        hoverOffset: 6,
       }]
     },
     options: {
+      cutout: '68%',
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: {
           display: true,
           position: 'bottom',
-          labels: { color: '#666', padding: 15 }
+          labels: { color: COR.texto, padding: 16, usePointStyle: true, pointStyle: 'circle' }
         }
       }
     }
@@ -292,30 +330,27 @@ function renderGraficoTopProdutos(dados) {
       datasets: [{
         label: 'Quantidade Vendida',
         data: quantidades,
-        backgroundColor: '#22c55e',
-        borderColor: '#16a34a',
-        borderWidth: 1,
-        borderRadius: 4,
+        backgroundColor: COR.terra,
+        borderWidth: 0,
+        borderRadius: 6,
+        maxBarThickness: 28,
       }]
     },
     options: {
       indexAxis: 'y',
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: true,
-          labels: { color: '#666' }
-        }
+        legend: { display: false }
       },
       scales: {
         x: {
           beginAtZero: true,
-          ticks: { color: '#666' },
-          grid: { color: 'rgba(0,0,0,0.05)' }
+          ticks: { color: COR.texto },
+          grid: { color: COR.grade }
         },
         y: {
-          ticks: { color: '#666' },
+          ticks: { color: COR.texto },
           grid: { display: false }
         }
       }

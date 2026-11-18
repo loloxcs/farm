@@ -1,6 +1,6 @@
 // pages/registro.js — RF01 (POST /auth/register)
 
-import { el, limpar, bannerErro } from '../ui.js';
+import { el, limpar, bannerErro, layoutAutenticacao, icone } from '../ui.js';
 import { authRegister } from '../api.js';
 import { setToken, setUser, isAuthenticated, getUser } from '../auth.js';
 import { navigate } from '../router.js';
@@ -20,8 +20,14 @@ export function renderRegistro({ outlet }) {
     return;
   }
 
-  const form = el('form', { className: 'form', attrs: { novalidate: true } });
-  form.appendChild(el('h1', { text: 'Criar conta' }));
+  const form = el('form', { className: 'form form-auth', attrs: { novalidate: true } });
+  form.appendChild(el('div', {
+    className: 'form-cabecalho',
+    children: [
+      el('h1', { text: 'Criar conta' }),
+      el('p', { className: 'form-cabecalho-sub', text: 'Leva menos de um minuto.' }),
+    ],
+  }));
 
   const erroSlot = el('div');
   form.appendChild(erroSlot);
@@ -77,13 +83,20 @@ export function renderRegistro({ outlet }) {
 
   const radioGroup = el('div', { className: 'radio-group' });
 
-  function makeRadioOption(value, label) {
-    const opt = el('label', { className: 'radio-option' });
+  function makeRadioOption(value, titulo, descricao, ic) {
+    const opt = el('label', { className: 'radio-option radio-option-card' });
     const input = el('input', {
       attrs: { type: 'radio', name: 'role', value },
     });
     opt.appendChild(input);
-    opt.appendChild(document.createTextNode(label));
+    opt.appendChild(el('span', { className: 'radio-option-icone', children: [icone(ic, { tamanho: 20 })] }));
+    opt.appendChild(el('span', {
+      className: 'radio-option-textos',
+      children: [
+        el('span', { className: 'radio-option-titulo', text: titulo }),
+        el('span', { className: 'radio-option-desc', text: descricao }),
+      ],
+    }));
     input.addEventListener('change', () => {
       radioGroup.querySelectorAll('.radio-option').forEach(o => o.classList.remove('is-selected'));
       if (input.checked) opt.classList.add('is-selected');
@@ -91,8 +104,8 @@ export function renderRegistro({ outlet }) {
     return opt;
   }
 
-  radioGroup.appendChild(makeRadioOption('cliente', 'Cliente — quero comprar'));
-  radioGroup.appendChild(makeRadioOption('agricultor', 'Agricultor — quero vender'));
+  radioGroup.appendChild(makeRadioOption('cliente', 'Quero comprar', 'Sou cliente', 'cesta'));
+  radioGroup.appendChild(makeRadioOption('agricultor', 'Quero vender', 'Sou agricultor', 'broto'));
   roleField.appendChild(radioGroup);
   form.appendChild(roleField);
 
@@ -143,5 +156,9 @@ export function renderRegistro({ outlet }) {
     }
   });
 
-  outlet.appendChild(form);
+  outlet.appendChild(layoutAutenticacao(form, {
+    titulo: 'Faça parte da Roça',
+    texto: 'Clientes encontram comida fresca perto de casa. Agricultores ganham uma vitrine para vender sem intermediários.',
+    itens: [{ icone: 'broto', texto: 'Cadastro grátis e rápido' }, { icone: 'pino', texto: 'Agricultores e feiras no mapa' }, { icone: 'coracao', texto: 'Apoie a agricultura familiar' }],
+  }));
 }

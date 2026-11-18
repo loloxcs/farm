@@ -1,7 +1,7 @@
 // main.js — entrypoint. Configura router, header global e eventos de auth.
 
 import * as router from './router.js';
-import { el, limpar } from './ui.js';
+import { el, limpar, icone, criarAvatar } from './ui.js';
 import { getUser, isAuthenticated, logout } from './auth.js';
 
 import { renderLogin } from './pages/login.js';
@@ -27,53 +27,110 @@ import { renderMinhasFeiras } from './pages/minhas-feiras.js';
 // =============================================================
 const headerEl = document.getElementById('app-header');
 
+/** Links do menu conforme quem está logado: [texto, hash, ícone]. */
+function linksDoMenu(role) {
+  if (role === 'agricultor') {
+    return [
+      ['Painel', '#/dashboard', 'painel'],
+      ['Meus produtos', '#/meus-produtos', 'broto'],
+      ['Minhas feiras', '#/minhas-feiras', 'barraca'],
+      ['Pedidos', '#/pedidos', 'recibo'],
+      ['Conversas', '#/conversas', 'conversa'],
+    ];
+  }
+  if (role === 'cliente') {
+    return [
+      ['Agricultores', '#/agricultores', 'cesta'],
+      ['Mapa', '#/mapa', 'mapa'],
+      ['Pedidos', '#/pedidos', 'recibo'],
+      ['Conversas', '#/conversas', 'conversa'],
+    ];
+  }
+  return [
+    ['Agricultores', '#/agricultores', 'cesta'],
+    ['Mapa', '#/mapa', 'mapa'],
+  ];
+}
+
+/** Marca o link do menu que corresponde à página atual. */
+function marcarLinkAtivo() {
+  const atual = (location.hash || '#/').split('?')[0];
+  for (const a of headerEl.querySelectorAll('[data-nav]')) {
+    const alvo = a.getAttribute('href');
+    const ativo = atual === alvo || atual.startsWith(alvo + '/')
+      || (alvo === '#/agricultores' && atual.startsWith('#/carrinho'));
+    a.classList.toggle('is-active', ativo);
+    if (ativo) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+}
+
+function fecharMenu() {
+  headerEl.classList.remove('menu-aberto');
+  const btn = headerEl.querySelector('.app-menu-toggle');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
 function renderHeader() {
   limpar(headerEl);
 
   const inner = el('div', { className: 'app-header-inner' });
+  const user = isAuthenticated() ? getUser() : null;
+  const role = user?.role;
 
-  // Brand
+  // Marca
   const brand = el('a', {
     className: 'app-brand',
-    attrs: { href: '#/agricultores' },
+    attrs: { href: role === 'agricultor' ? '#/dashboard' : '#/agricultores', 'aria-label': 'Roça — início' },
   });
-  brand.appendChild(el('span', { className: 'app-brand-mark', text: 'R' }));
-  brand.appendChild(el('span', { text: 'Roça' }));
+  brand.appendChild(el('span', { className: 'app-brand-mark', children: [icone('folha', { tamanho: 18 })] }));
+  brand.appendChild(el('span', { className: 'app-brand-nome', text: 'Roça' }));
   inner.appendChild(brand);
 
-  // Nav
-  const nav = el('nav', { className: 'app-nav' });
+  // Botão do menu (celular)
+  const toggle = el('button', {
+    className: 'app-menu-toggle',
+    attrs: { type: 'button', 'aria-label': 'Abrir menu', 'aria-expanded': 'false', 'aria-controls': 'app-nav' },
+    children: [icone('menu', { tamanho: 22, className: 'icone-abrir' }), icone('fechar', { tamanho: 22, className: 'icone-fechar' })],
+    on: {
+      click: () => {
+        const aberto = headerEl.classList.toggle('menu-aberto');
+        toggle.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+      },
+    },
+  });
 
-  if (isAuthenticated()) {
-    const user = getUser();
-    const role = user?.role;
-
-    // Links principais conforme role
-    if (role === 'cliente') {
-      nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
-      nav.appendChild(el('a', { text: 'Mapa', attrs: { href: '#/mapa' } }));
-    } else if (role === 'agricultor') {
-      nav.appendChild(el('a', { text: 'Dashboard', attrs: { href: '#/dashboard' } }));
-      nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
-      nav.appendChild(el('a', { text: 'Meus produtos', attrs: { href: '#/meus-produtos' } }));
-      nav.appendChild(el('a', { text: 'Minhas feiras', attrs: { href: '#/minhas-feiras' } }));
-    }
-    nav.appendChild(el('a', { text: 'Conversas', attrs: { href: '#/conversas' } }));
-    nav.appendChild(el('a', { text: 'Pedidos', attrs: { href: '#/pedidos' } }));
-    if (role === 'cliente') {
-      nav.appendChild(el('a', { text: 'Meu perfil', attrs: { href: '#/meu-perfil' } }));
-    }
-
-    // Nome do usuário (texto, sem link)
-    nav.appendChild(el('span', {
-      className: 'app-nav-user',
-      text: user?.nome || '',
+  // Navegação principal
+  const nav = el('nav', { className: 'app-nav', attrs: { id: 'app-nav', 'aria-label': 'Principal' } });
+  const links = el('div', { className: 'app-nav-links' });
+  for (const [texto, hash, ic] of linksDoMenu(role)) {
+    links.appendChild(el('a', {
+      className: 'app-nav-link',
+      attrs: { href: hash, 'data-nav': '' },
+      children: [icone(ic, { tamanho: 18 }), el('span', { text: texto })],
     }));
+  }
+  nav.appendChild(links);
 
-    nav.appendChild(el('button', {
-      className: 'btn btn-ghost',
-      text: 'Sair',
-      attrs: { type: 'button' },
+  const conta = el('div', { className: 'app-nav-conta' });
+  if (user) {
+    const perfil = el('a', {
+      className: 'app-nav-user',
+      attrs: { href: '#/meu-perfil', 'data-nav': '', title: 'Meu perfil' },
+    });
+    perfil.appendChild(criarAvatar(user.nome, user.foto_id || user.perfil?.foto_id, 30));
+    perfil.appendChild(el('span', {
+      className: 'app-nav-user-textos',
+      children: [
+        el('span', { className: 'app-nav-user-nome', text: (user.nome || '').split(' ')[0] || 'Minha conta' }),
+        el('span', { className: 'app-nav-user-papel', text: role === 'agricultor' ? 'Agricultor' : 'Cliente' }),
+      ],
+    }));
+    conta.appendChild(perfil);
+    conta.appendChild(el('button', {
+      className: 'btn btn-ghost btn-sm app-nav-sair',
+      attrs: { type: 'button', title: 'Sair da conta' },
+      children: [icone('sair', { tamanho: 16 }), el('span', { text: 'Sair' })],
       on: {
         click: () => {
           logout();
@@ -83,18 +140,59 @@ function renderHeader() {
       },
     }));
   } else {
-    nav.appendChild(el('a', { text: 'Agricultores', attrs: { href: '#/agricultores' } }));
-    nav.appendChild(el('a', { text: 'Mapa', attrs: { href: '#/mapa' } }));
-    nav.appendChild(el('a', { text: 'Entrar', attrs: { href: '#/login' } }));
-    nav.appendChild(el('a', {
-      className: 'btn btn-primary',
-      text: 'Cadastrar',
-      attrs: { href: '#/registro' },
-    }));
+    conta.appendChild(el('a', { className: 'btn btn-ghost', text: 'Entrar', attrs: { href: '#/login' } }));
+    conta.appendChild(el('a', { className: 'btn btn-primary', text: 'Criar conta', attrs: { href: '#/registro' } }));
   }
+  nav.appendChild(conta);
+
+  // Fecha o menu do celular ao escolher um link
+  nav.addEventListener('click', (ev) => { if (ev.target.closest('a')) fecharMenu(); });
 
   inner.appendChild(nav);
+  inner.appendChild(toggle);
   headerEl.appendChild(inner);
+  marcarLinkAtivo();
+}
+
+// =============================================================
+// Rodapé global
+// =============================================================
+function renderFooter() {
+  let footer = document.getElementById('app-footer');
+  if (!footer) {
+    footer = el('footer', { className: 'app-footer', attrs: { id: 'app-footer' } });
+    document.body.appendChild(footer);
+  }
+  limpar(footer);
+  const inner = el('div', { className: 'app-footer-inner' });
+
+  const marca = el('div', { className: 'app-footer-marca' });
+  marca.appendChild(el('span', {
+    className: 'app-brand',
+    children: [
+      el('span', { className: 'app-brand-mark', children: [icone('folha', { tamanho: 18 })] }),
+      el('span', { className: 'app-brand-nome', text: 'Roça' }),
+    ],
+  }));
+  marca.appendChild(el('p', { text: 'Do campo direto para a sua mesa. Compre de quem planta, perto de você.' }));
+  inner.appendChild(marca);
+
+  const col = (titulo, itens) => el('div', {
+    className: 'app-footer-col',
+    children: [
+      el('h4', { text: titulo }),
+      ...itens.map(([t, h]) => el('a', { text: t, attrs: { href: h } })),
+    ],
+  });
+  inner.appendChild(col('Explorar', [['Agricultores', '#/agricultores'], ['Mapa de feiras', '#/mapa']]));
+  inner.appendChild(col('Sua conta', isAuthenticated()
+    ? [['Meu perfil', '#/meu-perfil'], ['Pedidos', '#/pedidos'], ['Conversas', '#/conversas']]
+    : [['Entrar', '#/login'], ['Criar conta', '#/registro']]));
+  footer.appendChild(inner);
+  footer.appendChild(el('div', {
+    className: 'app-footer-base',
+    text: `© ${new Date().getFullYear()} Roça · Marketplace de agricultura familiar`,
+  }));
 }
 
 // =============================================================
@@ -177,12 +275,14 @@ router.register('#/pedidos/:id',
 // 404
 router.setNotFound(({ outlet }) => {
   limpar(outlet);
-  const box = el('div', { className: 'em-breve' });
-  box.appendChild(el('h2', { text: 'Página não encontrada' }));
-  box.appendChild(el('p', { text: 'O endereço que você acessou não existe.' }));
+  const box = el('div', { className: 'em-breve pagina-404' });
+  box.appendChild(el('span', { className: 'em-breve-icone', children: [icone('broto', { tamanho: 32 })] }));
+  box.appendChild(el('p', { className: 'em-breve-fase', text: 'Erro 404' }));
+  box.appendChild(el('h2', { text: 'Essa página não brotou por aqui' }));
+  box.appendChild(el('p', { text: 'O endereço que você acessou não existe ou foi movido.' }));
   box.appendChild(el('a', {
     className: 'btn btn-primary',
-    text: 'Ir para Agricultores',
+    text: 'Ver agricultores',
     attrs: { href: '#/agricultores' },
   }));
   outlet.appendChild(box);
@@ -197,6 +297,7 @@ window.addEventListener('auth:expired', () => {
   if (isAuthenticated()) {
     logout();
     renderHeader();
+    renderFooter();
     router.navigate('#/login');
   }
 });
@@ -204,6 +305,14 @@ window.addEventListener('auth:expired', () => {
 // auth:changed — disparado por login/registro/logout pra re-renderizar header.
 window.addEventListener('auth:changed', () => {
   renderHeader();
+  renderFooter();
+});
+
+// Destaca o link da página atual, fecha o menu do celular e volta ao topo.
+window.addEventListener('hashchange', () => {
+  marcarLinkAtivo();
+  fecharMenu();
+  window.scrollTo(0, 0);
 });
 
 // =============================================================
@@ -211,4 +320,5 @@ window.addEventListener('auth:changed', () => {
 // =============================================================
 router.setOutlet(document.getElementById('app'));
 renderHeader();
+renderFooter();
 router.start();
