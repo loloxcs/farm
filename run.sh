@@ -116,15 +116,15 @@ fi
 (npm run --silent db:geocodificar >/dev/null 2>&1 || true) &
 
 echo ""
-verde "    ✔ Sistema no ar:  $URL"
+verde "    ✔ Sistema no ar:  $URL/#/agricultores"
 echo "      API: $URL/api   (health: $URL/api/health)"
 echo "      Pressione Ctrl+C para parar."
 echo ""
 
 # Abre o navegador (Mac: open; Linux: xdg-open). Use NO_BROWSER=1 ./run.sh para não abrir.
 if [ -z "${NO_BROWSER:-}" ]; then
-  if command -v open >/dev/null 2>&1; then open "$URL"
-  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1 || true
+  if command -v open >/dev/null 2>&1; then open "$URL/#/agricultores"
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL/#/agricultores" >/dev/null 2>&1 || true
   fi
 fi
 

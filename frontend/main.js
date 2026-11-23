@@ -81,7 +81,7 @@ function renderHeader() {
   // Marca
   const brand = el('a', {
     className: 'app-brand',
-    attrs: { href: role === 'agricultor' ? '#/dashboard' : '#/agricultores', 'aria-label': 'Roça — início' },
+    attrs: { href: '#/agricultores', 'aria-label': 'Roça — início' },
   });
   brand.appendChild(el('span', { className: 'app-brand-mark', children: [icone('folha', { tamanho: 18 })] }));
   brand.appendChild(el('span', { className: 'app-brand-nome', text: 'Roça' }));
@@ -220,17 +220,13 @@ function exigirRole(roleEsperado, handler) {
 // Registro de rotas
 // =============================================================
 
-// Raiz → redireciona conforme estado de auth
+// Raiz → página inicial (lista de agricultores)
 router.register('#/', ({ outlet }) => {
   // Limpa ANTES do replace: o replace já começa a desenhar a página de destino
   // na hora; limpar depois apagava o que ela tinha acabado de montar (tela em branco).
+  // A página inicial do site é a lista de agricultores, para todo mundo.
   limpar(outlet);
-  if (isAuthenticated()) {
-    const u = getUser();
-    router.replace(u?.role === 'agricultor' ? '#/meu-perfil' : '#/agricultores');
-  } else {
-    router.replace('#/agricultores');
-  }
+  router.replace('#/agricultores');
 });
 
 // Públicas — Fase A
